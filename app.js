@@ -77,6 +77,20 @@ const map = L.map('map',{
   zoomControl:false,zoomSnap:.25,minZoom:.5,maxZoom:6,
   maxBounds:[[-85,-180],[85,540]]
 }).setView([-18,155],2.5);
+function preventRepeatedWorld(mapInstance) {
+  function updateMinimumZoom() {
+    const {x:width}=mapInstance.getSize();
+    if (!width) return;
+    const worldWidth=mapInstance.getPixelWorldBounds(0).getSize().x;
+    const snap=mapInstance.options.zoomSnap;
+    // Round up so the visible longitude span never exceeds one full world.
+    const zoom=mapInstance.getScaleZoom(width/worldWidth,0);
+    mapInstance.setMinZoom(Math.max(0,Math.ceil(zoom/snap)*snap));
+  }
+  mapInstance.on('resize',updateMinimumZoom);
+  updateMinimumZoom();
+}
+preventRepeatedWorld(map);
 L.control.zoom({position:'bottomleft'}).addTo(map);
 L.control.scale({imperial:false,position:'bottomright'}).addTo(map);
 map.attributionControl.setPrefix('');
@@ -100,7 +114,7 @@ function fitOverview(mode) {
   mapMode=mode;
   updateMapControls();
   map.fitBounds(mode==='global' ? globalBounds : regionalBounds,{
-    padding:[map.getSize().x<500 && mode==='regional' ? 47 : 20,18],maxZoom:mode==='global' ? 2.5 : 4,animate:false
+    padding:[map.getSize().x<500 && mode==='regional' ? 47 : 20,18],maxZoom:mode==='global' ? Math.max(2.5,map.getMinZoom()) : 4,animate:false
   });
 }
 
@@ -428,6 +442,7 @@ function renderFacts(id,facts) {
 function showReportMap(vessel) {
   if(!reportMap) {
     reportMap=L.map('reportMap',{scrollWheelZoom:false,minZoom:0,maxZoom:6,zoomSnap:.25});
+    preventRepeatedWorld(reportMap);
     reportMap.attributionControl.setPrefix('');
     reportMap.attributionControl.addAttribution('Natural Earth');
     const base=L.geoJSON(null,{interactive:false,style:{color:'#559699',weight:.6,fillColor:'#24585a',fillOpacity:1}}).addTo(reportMap);
