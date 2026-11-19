@@ -47,3 +47,90 @@ input, select, button, .leaflet-container { font-variant-numeric:lining-nums tab
 #shipName { font-family:'DM Sans',Arial,sans-serif; }
 .stat strong, .eta-panel > strong { letter-spacing:-.035em; }
 .stat strong.stat-status { letter-spacing:normal; }
+
+/* DRUA dashboard, report and guide interactions */
+.main-grid { grid-template-columns:minmax(0,1fr); }
+.main-grid.has-vessel { grid-template-columns:minmax(0,1fr) minmax(260px,340px); }
+#vesselPanel { min-width:0; }
+#closeVessel { flex:none; }
+.register-button { display:inline-flex; align-items:center; justify-content:center; gap:9px; }
+.register-button img { flex:none; filter:grayscale(1) sepia(1) saturate(2); }
+#registerDialog, #vesselReport { box-sizing:border-box; color:var(--text); background:#082631; }
+#registerDialog { width:min(500px,calc(100% - 24px)); max-height:calc(100dvh - 24px); padding:24px; overflow:auto; }
+#registerDialog .register-heading { padding-right:24px; }
+#registerDialog .form-grid { grid-template-columns:1fr; }
+#registerDialog::backdrop, #vesselReport::backdrop { background:#00121bce; }
+#vesselReport { width:min(740px,calc(100% - 24px)); max-height:min(800px,calc(100dvh - 24px)); padding:0; overflow:hidden; }
+#vesselReport[open] { display:flex; flex-direction:column; }
+.report-dialog-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:19px 22px; border-bottom:1px solid var(--line); }
+.report-dialog-head h2 { margin:5px 0 0; overflow-wrap:anywhere; }
+.report-dialog-body { overflow:auto; overscroll-behavior:contain; padding:15px 22px 22px; }
+.report-dialog-body section { margin-top:22px; }
+.report-dialog-body h3 { font-size:17px; }
+.report-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.report-facts div { padding:10px; border:1px solid var(--line); border-radius:5px; background:#051f29; }
+.report-facts dt { color:var(--muted); font-size:10px; margin-bottom:5px; }
+.report-facts dd { margin:0; line-height:1.5; overflow-wrap:anywhere; }
+#reportMap { height:clamp(165px,32vh,275px); margin-top:8px; border:1px solid var(--line); border-radius:6px; }
+.report-legend { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.vessel-state { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; border:1px solid currentColor; border-radius:20px; padding:3px 7px; font-weight:700; font-size:10px; }
+.vessel-state::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.vessel-state.normal { color:#82efac; background:#123b2e; }
+.vessel-state.ordinary { color:#ffdb7d; background:#453615; }
+.vessel-state.critical { color:#ffa3a3; background:#492429; }
+.report-link { background:none; color:#9bf9eb; border:none; padding:3px 0; text-align:left; font-weight:700; }
+.report-link:hover { text-decoration:underline; }
+#reportBody td small { margin-top:5px; white-space:nowrap; }
+#reports tbody tr:hover { background:#10404a; }
+main[data-view="sobre"] .heading { display:none; }
+main[data-view="reportes"] .heading-side { display:none; }
+main[data-view="sobre"] .about { padding:0; margin-top:0; border:0; background:none; max-width:1200px; margin-inline:auto; }
+.mission-card { display:grid; grid-template-columns:1.2fr 1fr; min-height:225px; overflow:hidden; }
+.mission-card > div { align-self:center; padding:clamp(20px,3vw,42px); }
+main.non-dashboard .mission-card h2 { font-size:clamp(29px,4vw,44px); }
+main.non-dashboard .mission-card p { font-size:clamp(14px,1.6vw,19px); margin-bottom:0; }
+.mission-card img { width:100%; height:100%; max-height:285px; object-fit:cover; }
+.mission-card, .about-grid article, .quick-guide { border:1px solid var(--line); border-radius:9px; background:#072630; }
+.about-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin:14px 0; gap:12px; }
+.about-grid article, .quick-guide { padding:clamp(15px,2vw,24px); }
+.quick-guide ol { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 32px; padding-left:23px; color:var(--muted); line-height:1.65; }
+.quick-guide strong { color:var(--text); }
+.quick-guide li::marker { color:#6cf1d8; font-weight:700; }
+.stat, .route-item, .map-key, .nav, .primary, .secondary, .register-button, .report-link, .about-grid article {
+  transition:background-color .2s ease,border-color .2s ease,color .2s ease,transform .2s ease;
+}
+.stat:hover,.about-grid article:hover { border-color:#429691; transform:translateY(-2px); }
+.map-key:hover, .report-link:hover { color:#eafff9; }
+@keyframes drua-enter {
+  from { opacity:0; transform:translateY(8px); }
+  to { opacity:1; transform:translateY(0); }
+}
+@keyframes drua-panel-enter {
+  from { opacity:0; transform:translateX(12px); }
+  to { opacity:1; transform:translateX(0); }
+}
+#vesselPanel:not(.hidden) { animation:drua-panel-enter .24s ease-out; }
+#registerDialog[open], #vesselReport[open], #threatDialog[open],
+#reports:not(.hidden), #about:not(.hidden), .step-fields:not(.hidden),
+main[data-view="mando"] .stats, main[data-view="mando"] .map-panel, main[data-view="mando"] .route-section {
+  animation:drua-enter .26s ease-out;
+}
+#about:not(.hidden) .about-grid { animation:drua-enter .34s ease-out; }
+@media(max-width:850px) {
+  .main-grid.has-vessel { grid-template-columns:1fr; }
+  .main-grid.has-vessel .side { display:block; }
+  .about-grid { grid-template-columns:1fr; }
+}
+@media(max-width:600px) {
+  .mission-card, .quick-guide ol { grid-template-columns:1fr; }
+  .mission-card img { height:130px; }
+  .report-dialog-head, .report-dialog-body { padding-inline:13px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; scroll-behavior:auto !important; }
+}
+@media print {
+  #reportBody .report-link { color:black; }
+  .vessel-state { color:black !important; background:white !important; }
+  #vesselReport,#registerDialog,#threatDialog { display:none !important; }
+}

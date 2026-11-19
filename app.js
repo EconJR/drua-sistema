@@ -37,7 +37,8 @@ function prepareVessel(entry, custom = true) {
   if (!Number.isFinite(Date.parse(entry.departure+'T12:00:00Z'))) return null;
   const normal = sailingPlan(from,to,entry.passage);
   if (!normal) return null;
-  const speed = Math.max(1,normal.km)/entry.days;
+  measure(normal);
+  const speed = Math.max(1,normal.length)/entry.days;
   return {...entry,from,to,normal,active:normal,custom,speed,elapsed:0,travelled:0,
     alert:null,status:'En tránsito',origin:portLabel(from),destination:portLabel(to)};
 }
@@ -51,7 +52,7 @@ for (const entry of saved) {
   const vessel = prepareVessel(entry);
   if (vessel) routes.push(vessel);
 }
-let selected = 0;
+let selected = null;
 let view = 'mando';
 let clockSpeed = 1;
 const map = L.map('map',{
@@ -90,7 +91,7 @@ function updateMapControls() {
   byId('globalMap').setAttribute('aria-pressed',mapMode==='global');
 }
 
-fetch('vendor/world.geojson').then(response=>response.json()).then(data=>{
+const cartography = fetch('vendor/world.geojson').then(response=>response.json()).then(data=>{
   for (const shift of [-360,0,360]) {
     land.addData(data.features.map(feature=>({...feature,geometry:{
       ...feature.geometry,coordinates:shiftGeometry(feature.geometry.coordinates,shift)
@@ -112,10 +113,11 @@ function unwrap(path) {
   for (const point of path) output.push(mapPoint(point,output.at(-1)?.[1] ?? 160));
   return output;
 }
-function drawLine(path,options) {
+function drawLine(path,options,onClick) {
   const line = unwrap(path);
   for (const shift of [-360,0,360]) {
-    L.polyline(line.map(([lat,lon])=>[lat,lon+shift]),options).addTo(layers);
+    const segment=L.polyline(line.map(([lat,lon])=>[lat,lon+shift]),options).addTo(layers);
+    if(onClick) segment.on('click',onClick);
   }
 }
 function measure(plan) {
@@ -161,10 +163,12 @@ function redraw() {
   markers.length=0;
   routes.forEach((vessel,index)=>{
     if (index===selected) return;
-    drawLine(vessel.normal.path,{color:'#83aec0',weight:1.25,opacity:.52,interactive:false});
+    drawLine(vessel.normal.path,{color:'#83aec0',weight:1.5,opacity:.56},()=>revealVessel(index));
   });
-  drawLine(routes[selected].normal.path,{color:'#04252c',weight:6,opacity:.76,interactive:false});
-  drawLine(routes[selected].normal.path,{color:'#54e6d1',weight:3,opacity:1,interactive:false});
+  if(selected!==null) {
+    drawLine(routes[selected].normal.path,{color:'#04252c',weight:6,opacity:.76,interactive:false});
+    drawLine(routes[selected].normal.path,{color:'#54e6d1',weight:3,opacity:1,interactive:false});
+  }
   routes.forEach((vessel,index)=>{
     const current = index===selected;
     if (vessel.alert?.alternative) {
@@ -187,7 +191,7 @@ function redraw() {
     }).addTo(layers);
     const label=document.createElement('span');
     label.textContent=vessel.ship;
-    marker.bindTooltip(label).on('click',()=>selectVessel(index));
+    marker.bindTooltip(label).on('click',()=>revealVessel(index));
     markers.push(marker);
   });
 }
@@ -196,6 +200,9 @@ map.on('moveend',redraw);
 function selectVessel(index,focus=true) {
   selected=index;
   const vessel=routes[index];
+  byId('vesselPanel').classList.remove('hidden');
+  document.querySelector('.main-grid').classList.add('has-vessel');
+  map.invalidateSize({pan:false});
   if(focus) {
     mapMode='route';
     updateMapControls();
@@ -206,30 +213,151 @@ function selectVessel(index,focus=true) {
   updateUI();
 }
 
+function revealVessel(index) {
+  selectVessel(index);
+  const behavior=window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
+  byId('vesselPanel').querySelector('.card-heading').scrollIntoView({block:'nearest',behavior});
+}
+
+const msPerDay=86400000;
+const dateTime=new Intl.DateTimeFormat('es',{dateStyle:'medium',timeStyle:'short',timeZone:'UTC',hourCycle:'h23'});
+
+function simulatedDate(vessel,days) {
+  return new Date(Date.parse(vessel.departure+'T12:00:00Z')+days*msPerDay);
+}
 function arrival(vessel) {
-  const date=new Date(vessel.departure+'T12:00:00Z');
-  date.setUTCDate(date.getUTCDate()+transitDays(vessel));
-  return date.toISOString().slice(0,10);
+  if(vessel.status==='En espera') return 'Por confirmar';
+  return dateTime.format(simulatedDate(vessel,vessel.alert?.alternative?vessel.alert.days:Number(vessel.days)))+' UTC';
 }
 function transitDays(vessel) {
   return vessel.alert?.alternative ? Math.ceil(vessel.alert.days) : Number(vessel.days);
 }
+function severityBadge(vessel) {
+  const badge=document.createElement('span');
+  const severity=vessel.alert?.severity || 'normal';
+  badge.className='vessel-state '+severity;
+  badge.textContent={normal:'Ruta normal',ordinary:'No crítica',critical:'Crítica'}[severity];
+  return badge;
+}
 function renderReports() {
   const rows=routes.map(vessel=>{
-    const cells=[vessel.ship,vessel.flag,vessel.origin,vessel.destination,vessel.cargo,
-      fmt(vessel.tonnes)+' t',vessel.departure,arrival(vessel),transitDays(vessel),vessel.status];
     const row=document.createElement('tr');
-    for(const value of cells) {
-      const td=document.createElement('td');
-      td.textContent=value;
-      row.append(td);
-    }
+    const name=row.insertCell();
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='report-link';
+    button.textContent=vessel.ship;
+    button.setAttribute('aria-haspopup','dialog');
+    button.onclick=()=>openVesselReport(vessel);
+    name.append(button);
+    const cells=[vessel.flag,vessel.origin,vessel.destination,vessel.cargo,
+      fmt(vessel.tonnes)+' t',vessel.departure,arrival(vessel),
+      vessel.status==='En espera'?'Por confirmar':transitDays(vessel)];
+    for(const value of cells) row.insertCell().textContent=value;
+    const status=row.insertCell();
+    const detail=document.createElement('small');
+    detail.textContent=vessel.status;
+    status.append(severityBadge(vessel),detail);
     return row;
   });
   byId('reportBody').replaceChildren(...rows);
 }
+
+const reportDialog=byId('vesselReport');
+let reportMap,reportTracks;
+function renderFacts(id,facts) {
+  const container=byId(id);
+  container.replaceChildren(...facts.map(([heading,value])=>{
+    const pair=document.createElement('div'),label=document.createElement('dt'),description=document.createElement('dd');
+    label.textContent=heading;
+    description.textContent=value;
+    pair.append(label,description);
+    return pair;
+  }));
+}
+function showReportMap(vessel) {
+  if(!reportMap) {
+    reportMap=L.map('reportMap',{scrollWheelZoom:false,minZoom:0,maxZoom:6,zoomSnap:.25});
+    reportMap.attributionControl.setPrefix('');
+    reportMap.attributionControl.addAttribution('Natural Earth');
+    const base=L.geoJSON(null,{interactive:false,style:{color:'#559699',weight:.6,fillColor:'#24585a',fillOpacity:1}}).addTo(reportMap);
+    cartography.then(()=>base.addData(land.toGeoJSON()));
+    reportTracks=L.layerGroup().addTo(reportMap);
+  }
+  reportMap.invalidateSize({pan:false});
+  reportTracks.clearLayers();
+  const original=unwrap(vessel.normal.path);
+  const bounds=L.latLngBounds(original);
+  L.polyline(original,{color:'#54e6d1',weight:2}).addTo(reportTracks);
+  if(vessel.alert?.alternative) {
+    const alternative=unwrap(vessel.alert.alternative.path);
+    const shifted=alternative.map(([lat,lon])=>[lat,lon+original.at(-1)[1]-alternative.at(-1)[1]]);
+    L.polyline(shifted,{color:'#ffc66c',weight:3,dashArray:'7 5'}).addTo(reportTracks);
+    bounds.extend(L.latLngBounds(shifted));
+  }
+  reportMap.fitBounds(bounds,{padding:[14,14],maxZoom:5,animate:false});
+  const center=reportMap.getCenter().lng;
+  L.circleMarker(mapPoint(position(vessel).point,center),{radius:5,color:'#b7fff1',fillOpacity:.95})
+    .addTo(reportTracks).bindTooltip('Posición al abrir el reporte');
+  if(vessel.alert) {
+    L.circleMarker(mapPoint(vessel.alert.eventPosition,center),{radius:5,color:'#ffc66c',fillOpacity:.95})
+      .addTo(reportTracks).bindTooltip(vessel.alert.alternative?'Inicio del desvío':'Posición al confirmar la alerta');
+  }
+}
+function openVesselReport(vessel) {
+  byId('reportVesselName').textContent=vessel.ship;
+  byId('reportVesselStatus').replaceChildren(severityBadge(vessel),' · '+vessel.status);
+  renderFacts('reportVesselFacts',[
+    ['Bandera',vessel.flag],['Origen',vessel.origin],['Destino',vessel.destination],
+    ['Carga',vessel.cargo+' · '+fmt(vessel.tonnes)+' t'],
+    ['Salida simulada',dateTime.format(simulatedDate(vessel,0))+' UTC'],
+    ['Llegada estimada',arrival(vessel)]
+  ]);
+  const alert=vessel.alert;
+  byId('reportEventNote').textContent=alert?.message || 'Este buque sigue el itinerario original. No se han registrado alertas.';
+  const facts=[];
+  if(alert) {
+    const [lat,lon]=alert.eventPosition;
+    const coordinate=(value,positive,negative)=>Math.abs(value).toFixed(3)+'° '+(value<0?negative:positive);
+    const place=coordinate(lat,'N','S')+' · '+coordinate(longitudeDelta(0,lon),'E','O');
+    facts.push(['Hora simulada del evento',dateTime.format(simulatedDate(vessel,alert.eventDays))+' UTC'],
+      [alert.alternative?'Posición al iniciar el desvío':'Posición durante la alerta',place],
+      ['Punto afectado',alert.label],
+      ['Vía alternativa',alert.alternative ? describeAlternative(alert.alternative,vessel.destination):'Sin paso habilitado'],
+      ['Llegada antes del evento',dateTime.format(simulatedDate(vessel,Number(vessel.days)))+' UTC'],
+      ['Nueva llegada estimada',arrival(vessel)]);
+    const extra=alert.alternative ? (alert.days-Number(vessel.days))*24 : null;
+    const timeChange=extra===null?'Pendiente':new Intl.NumberFormat('es',{maximumFractionDigits:1}).format(Math.abs(extra))+
+      (extra<-.05?' h menos':' h extra');
+    facts.push(['Cambio en el tiempo de tránsito',timeChange]);
+  }
+  renderFacts('reportEventFacts',facts);
+  byId('reportMapLegend').textContent=alert?.alternative ?
+    'Turquesa · ruta original | Dorado · vía alternativa e inicio del desvío' : 'Turquesa · ruta original';
+  reportDialog.showModal();
+  reportDialog.querySelector('.report-dialog-body').scrollTop=0;
+  showReportMap(vessel);
+}
+function describeAlternative(plan,destination) {
+  const names=[...new Set(plan.edges.map(id=>strategicPassages[seaEdges[id]?.[3]]).filter(Boolean))];
+  return (names.length ? names.join(' → ') : 'Tramos marítimos alternativos')+
+    ' → '+destination+' · '+fmt(Math.round(plan.length))+' km restantes.';
+}
 function updateUI() {
+  byId('statAlerts').textContent=routes.filter(s=>s.alert && s.status!=='Arribado').length;
+  byId('statCargo').textContent=fmt(routes.filter(v=>v.status!=='Arribado').reduce((sum,s)=>sum+Number(s.tonnes),0))+' t';
+  byId('reportText').textContent=routes.length+' buques registrados. Selecciona un nombre para abrir su reporte.';
+  [...byId('routeList').children].forEach((button,index)=>{
+    button.classList.toggle('active',index===selected);
+    button.setAttribute('aria-pressed',index===selected);
+  });
+  if(view==='reportes') renderReports();
   const vessel=routes[selected];
+  if(!vessel) {
+    byId('mapTag').textContent='/ Oceanía y Pacífico Sur';
+    byId('mapMessage').textContent='Selecciona un buque o una ruta para ver su detalle.';
+    return;
+  }
   const passage=Object.entries(strategicPassages)
     .filter(([key])=>vessel.normal.edges.some(edge=>seaEdges[edge]?.[3]===key))
     .map(([,label])=>label).join(' · ');
@@ -237,19 +365,12 @@ function updateUI() {
     shipJourney:vessel.origin+' → '+vessel.destination,shipVolume:fmt(vessel.tonnes)+' t',
     shipEta:transitDays(vessel)+' días · '+arrival(vessel),shipStatus:vessel.status,
     etaOrigin:seaPorts[vessel.from][0],etaDestination:seaPorts[vessel.to][0],
-    statAlerts:routes.filter(s=>s.alert && s.status!=='Arribado').length,mapTag:'/ '+seaPorts[vessel.to][0],
+    mapTag:'/ '+seaPorts[vessel.to][0],
     mapMessage:vessel.origin+' → '+vessel.destination+' · '+fmt(Math.round(vessel.normal.km))+' km'+(passage?' · '+passage:''),
-    scenarioNote:vessel.alert?.message || 'Simula una amenaza en el recorrido pendiente.',
-    reportText:routes.length+' buques registrados en la simulación de abastecimiento marítimo de Oceanía.'};
+    scenarioNote:vessel.alert?.message || 'Simula una amenaza en el recorrido pendiente.'};
   for (const [id,value] of Object.entries(fields)) byId(id).textContent=value;
   byId('simulate').disabled=Boolean(vessel.alert) || vessel.status==='Arribado';
-  byId('statCargo').textContent=fmt(routes.filter(v=>v.status!=='Arribado').reduce((sum,s)=>sum+Number(s.tonnes),0))+' t';
-  [...byId('routeList').children].forEach((button,index)=>{
-    button.classList.toggle('active',index===selected);
-    button.setAttribute('aria-pressed',index===selected);
-  });
   updateEta(vessel);
-  renderReports();
 }
 function buildRouteList() {
   byId('routeList').replaceChildren(...routes.map((vessel,index)=>{
@@ -259,7 +380,7 @@ function buildRouteList() {
     name.textContent=vessel.ship;
     journey.textContent=vessel.origin+' → '+vessel.destination;
     button.append(name,journey);
-    button.onclick=()=>selectVessel(index);
+    button.onclick=()=>revealVessel(index);
     return button;
   }));
   byId('statRoutes').textContent=String(routes.length).padStart(2,'0');
@@ -300,7 +421,9 @@ function findDetour(vessel,severity,targetPassage) {
   const message=alternative
     ? label+' · Desvío automático de '+fmt(Math.round(alternative.km))+' km desde la posición actual.'
     : label+' · La red simulada no ofrece un paso habilitado. El buque queda en espera.';
-  return {point:threatPoint,label,message,alternative,severity,days:vessel.elapsed+(alternative?.km ?? 0)/vessel.speed};
+  if(alternative) measure(alternative);
+  return {point:threatPoint,label,message,alternative,severity,eventPosition:point,
+    eventDays:vessel.elapsed,days:vessel.elapsed+(alternative?.length ?? 0)/vessel.speed};
 }
 
 const confirmation = byId('threatDialog');
@@ -367,17 +490,18 @@ function tick(now) {
     if(view==='mando') markers[index]?.setLatLng(mapPoint(position(vessel).point));
   }
   if(changed) updateUI();
-  else if(view==='mando') updateEta(routes[selected]);
+  else if(view==='mando' && selected!==null) updateEta(routes[selected]);
   requestAnimationFrame(tick);
 }
 
 const titles={
   mando:['Control de Mando','Monitoreo simulado del abastecimiento alimentario marítimo en Oceanía','VISTA GENERAL'],
   reportes:['Reportes','Registro de embarcaciones y trayectorias','RESUMEN'],
-  sobre:['Sobre DRUA','Seguridad alimentaria y abastecimiento marítimo en Oceanía','ACERCA DEL PROYECTO']
+  sobre:['Sobre DRUA','','']
 };
 function showView(next) {
   view=next;
+  document.querySelector('main').dataset.view=view;
   document.querySelector('main').classList.toggle('non-dashboard',view!=='mando');
   for(const button of document.querySelectorAll('.nav')) {
     const active=button.dataset.view===view;
@@ -400,6 +524,18 @@ for(const button of document.querySelectorAll('#helpDialog .close,#helpDialog .c
   button.onclick=()=>byId('helpDialog').classList.add('hidden');
 }
 byId('print').onclick=()=>window.print();
+byId('startGuide').onclick=()=>showView('mando');
+byId('closeVessel').onclick=()=>{
+  const previous=selected;
+  selected=null;
+  byId('vesselPanel').classList.add('hidden');
+  document.querySelector('.main-grid').classList.remove('has-vessel');
+  map.invalidateSize({pan:false});
+  if(mapMode==='route') fitOverview('regional');
+  redraw();
+  updateUI();
+  byId('routeList').children[previous]?.focus({preventScroll:true});
+};
 byId('speed').onchange=event=>{clockSpeed=Number(event.target.value)};
 
 function initRegistration() {
@@ -441,11 +577,12 @@ function initRegistration() {
   }
   resetFields();
   country.onchange=fillOrigins;
+  const registration=byId('registerDialog');
   byId('openRegister').onclick=()=>{
-    showView('mando');
-    byId('registerDialog').scrollIntoView({behavior:'smooth',block:'center'});
-    form.querySelector('[data-step="'+step+'"] input, [data-step="'+step+'"] select')?.focus({preventScroll:true});
+    registration.showModal();
+    form.querySelector('[data-step="'+step+'"] input, [data-step="'+step+'"] select')?.focus();
   };
+  byId('closeRegister').onclick=()=>registration.close();
   byId('nextStep').onclick=()=>{
     for(const field of form.querySelectorAll('[data-step="'+step+'"] input,[data-step="'+step+'"] select')) {
       if(!field.reportValidity()) return;
@@ -484,6 +621,7 @@ function initRegistration() {
     }
     routes.push(pending.vessel);
     pending=null;
+    registration.close();
     buildRouteList();
     resetFields();
     setStep(1);
@@ -495,7 +633,8 @@ function initRegistration() {
 
 initRegistration();
 buildRouteList();
-selectVessel(0,false);
+updateUI();
+redraw();
 fitOverview('regional');
 let previousMapSize = map.getSize();
 new ResizeObserver(()=>{
