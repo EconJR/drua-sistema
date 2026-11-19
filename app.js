@@ -54,16 +54,42 @@ for (const entry of saved) {
 let selected = 0;
 let view = 'mando';
 let clockSpeed = 1;
-const map = L.map('map',{zoomControl:false,zoomSnap:.25,minZoom:1,maxZoom:6})
-  .setView([-18,160],3);
+const map = L.map('map',{
+  zoomControl:false,zoomSnap:.25,minZoom:.5,maxZoom:6,
+  maxBounds:[[-85,-180],[85,540]]
+}).setView([-18,155],2.5);
 L.control.zoom({position:'bottomleft'}).addTo(map);
+L.control.scale({imperial:false,position:'bottomright'}).addTo(map);
 map.attributionControl.setPrefix('');
-const land = L.geoJSON(null,{interactive:false,style:{color:'#327581',weight:.45,fillColor:'#1c5360',fillOpacity:1}}).addTo(map);
-const imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
-  attribution:'Imágenes &copy; Esri',maxZoom:6
-}).addTo(map);
-imagery.once('tileload',()=>land.setStyle({fillOpacity:.05,opacity:.12}));
 map.attributionControl.addAttribution('Natural Earth');
+
+const land = L.geoJSON(null,{interactive:false,style:{
+  color:'#559699',weight:.65,fillColor:'#24585a',fillOpacity:1
+}}).addTo(map);
+
+const regionalBounds = L.latLngBounds([[-48,108],[4,189]]);
+const globalBounds = L.latLngBounds([[-65,-178],[78,178]]);
+let mapMode = 'regional';
+const regionalLabels = [
+  ['Australia',-24,134], ['Papúa Nueva Guinea',-5.5,145],
+  ['Islas Salomón',-7,161], ['Nueva Zelanda',-43,174],
+  ['Fiyi',-16.7,179.5], ['Vanuatu',-17,166], ['Samoa',-11,-172],
+  ['Tonga',-23,-174], ['Pacífico Sur',-33,174]
+];
+
+function fitOverview(mode) {
+  mapMode=mode;
+  updateMapControls();
+  map.fitBounds(mode==='global' ? globalBounds : regionalBounds,{
+    padding:[map.getSize().x<500 && mode==='regional' ? 47 : 20,18],maxZoom:mode==='global' ? 2.5 : 4,animate:false
+  });
+}
+
+function updateMapControls() {
+  byId('regionalMap').setAttribute('aria-pressed',mapMode==='regional');
+  byId('globalMap').setAttribute('aria-pressed',mapMode==='global');
+}
+
 fetch('vendor/world.geojson').then(response=>response.json()).then(data=>{
   for (const shift of [-360,0,360]) {
     land.addData(data.features.map(feature=>({...feature,geometry:{
@@ -72,6 +98,7 @@ fetch('vendor/world.geojson').then(response=>response.json()).then(data=>{
   }
 }).catch(()=>{ byId('mapMessage').textContent='No se pudo cargar la cartografía base.'; });
 const layers = L.layerGroup().addTo(map);
+const geographicLabels = L.layerGroup().addTo(map);
 const markers = [];
 const vesselIcon = '<img src="assets/vessel.svg" alt="" width="24" height="24">';
 function shiftGeometry(coords,shift) {
@@ -114,11 +141,32 @@ function position(vessel) {
   return {point:[a[0]+(b[0]-a[0])*fraction,a[1]+longitudeDelta(a[1],b[1])*fraction],edge:lo-1};
 }
 function redraw() {
+  geographicLabels.clearLayers();
+  if (map.getZoom()>=2.25 || (mapMode==='regional' && map.getZoom()>=1.75)) {
+    for (const [name,lat,lon] of regionalLabels) {
+      const ocean=name==='Pacífico Sur';
+      const className=ocean?'geo-label geo-ocean':'geo-label';
+      L.marker(mapPoint([lat,lon]),{interactive:false,keyboard:false,
+        icon:L.divIcon({className,html:name,iconSize:[100,20],iconAnchor:[50,10]})})
+        .addTo(geographicLabels);
+    }
+  }
+  for (const [lat,lon] of [[-13.83,-171.77],[-21.14,-175.21],[-17.74,168.31]]) {
+    if(map.getZoom()>=2) {
+      L.circleMarker(mapPoint([lat,lon]),{interactive:false,radius:2,color:'#a5d8cb',weight:1,fillOpacity:1})
+        .addTo(geographicLabels);
+    }
+  }
   layers.clearLayers();
   markers.length=0;
   routes.forEach((vessel,index)=>{
+    if (index===selected) return;
+    drawLine(vessel.normal.path,{color:'#83aec0',weight:1.25,opacity:.52,interactive:false});
+  });
+  drawLine(routes[selected].normal.path,{color:'#04252c',weight:6,opacity:.76,interactive:false});
+  drawLine(routes[selected].normal.path,{color:'#54e6d1',weight:3,opacity:1,interactive:false});
+  routes.forEach((vessel,index)=>{
     const current = index===selected;
-    drawLine(vessel.normal.path,{color:current?'#54e6d1':'#75c7c3',weight:current?3:1,opacity:current?.9:.36,interactive:false});
     if (vessel.alert?.alternative) {
       drawLine(vessel.alert.alternative.path,{color:'#ffc66c',dashArray:'7 6',weight:current?4:2,interactive:false});
     }
@@ -149,6 +197,8 @@ function selectVessel(index,focus=true) {
   selected=index;
   const vessel=routes[index];
   if(focus) {
+    mapMode='route';
+    updateMapControls();
     const bounds=L.latLngBounds(unwrap(vessel.active.path));
     map.fitBounds(bounds,{padding:[24,24],maxZoom:4,animate:false});
   }
@@ -324,7 +374,7 @@ function tick(now) {
 const titles={
   mando:['Control de Mando','Monitoreo simulado del abastecimiento alimentario marítimo en Oceanía','VISTA GENERAL'],
   reportes:['Reportes','Registro de embarcaciones y trayectorias','RESUMEN'],
-  sobre:['Sobre Bula','Seguridad alimentaria y abastecimiento marítimo en Oceanía','ACERCA DEL PROYECTO']
+  sobre:['Sobre DRUA','Seguridad alimentaria y abastecimiento marítimo en Oceanía','ACERCA DEL PROYECTO']
 };
 function showView(next) {
   view=next;
@@ -343,7 +393,8 @@ function showView(next) {
 }
 for(const button of document.querySelectorAll('.nav')) button.onclick=()=>showView(button.dataset.view);
 document.querySelector('.brand').onclick=event=>{event.preventDefault();showView('mando')};
-byId('mapKey').onclick=()=>byId('legend').classList.toggle('hidden');
+byId('regionalMap').onclick=()=>fitOverview('regional');
+byId('globalMap').onclick=()=>fitOverview('global');
 byId('help').onclick=()=>byId('helpDialog').classList.remove('hidden');
 for(const button of document.querySelectorAll('#helpDialog .close,#helpDialog .close-action')) {
   button.onclick=()=>byId('helpDialog').classList.add('hidden');
@@ -445,4 +496,16 @@ function initRegistration() {
 initRegistration();
 buildRouteList();
 selectVessel(0,false);
+fitOverview('regional');
+let previousMapSize = map.getSize();
+new ResizeObserver(()=>{
+  const container=map.getContainer();
+  if (!container.clientWidth || !container.clientHeight) return;
+  map.invalidateSize({pan:false,debounceMoveend:true});
+  const size=map.getSize();
+  if (size.equals(previousMapSize)) return;
+  previousMapSize=size;
+  if (mapMode==='route') selectVessel(selected);
+  else fitOverview(mapMode);
+}).observe(map.getContainer());
 requestAnimationFrame(tick);

@@ -1,6 +1,6 @@
-# Bula — Sistema de rutas y abastecimiento
+# DRUA — Sistema de rutas y abastecimiento
 
-Prototipo interactivo para visualizar corredores marítimos y simular amenazas y desvíos de barcos con cargas agroestratégicas. Incluye Control de Mando, Reportes y Sobre Bula.
+Prototipo interactivo para visualizar corredores marítimos y simular amenazas y desvíos de barcos con cargas agroestratégicas. Incluye Control de Mando, Reportes y Sobre DRUA.
 
 **Simulación:** los buques, cargas, rutas alternativas, alertas y tiempos son ficticios o esquemáticos. No es información en tiempo real, una evaluación oficial de riesgos ni una herramienta de navegación.
 

@@ -16,3 +16,28 @@ main.non-dashboard .stats,main.non-dashboard .main-grid,main.non-dashboard .rout
 #threatDialog label { display:grid; gap:5px; margin:12px 0; }
 #threatDialog select { background:var(--soft); color:var(--text); border:1px solid var(--line); padding:8px; border-radius:5px; }
 #simulate:disabled { opacity:.55; cursor:default; }
+
+/* The map owns the panel height, while the legend stays clear of the geography. */
+.map-panel { display:flex; flex-direction:column; }
+.map-top { min-height:58px; height:auto; padding-block:9px; gap:8px; }
+.map-wrap { flex:1; min-height:430px; }
+#map { position:absolute; inset:0; height:100%; background:radial-gradient(ellipse at 58% 51%,#0a3849,#05232f 85%) !important; }
+.map-controls { display:flex; align-items:center; gap:4px; flex:none; }
+.map-controls button[aria-pressed="true"] { color:#b8fff1; border-color:#47c8b8; background:#103e48; }
+.map-legend { display:flex; flex-wrap:wrap; gap:7px 17px; padding:9px 14px; border-top:1px solid var(--line); color:var(--muted); font-size:10px; }
+.map-legend span { display:inline-flex; align-items:center; gap:6px; }
+.route-swatch { width:17px; border-top:2px solid #54e6d1; }
+.fleet-swatch { border-color:#83aec0; }
+.detour-swatch { border-top:2px dashed #ffc66c; }
+.threat-swatch { width:7px; height:7px; border-radius:50%; border:1px solid #ffc66c; background:#af813c; }
+.geo-label { display:grid; place-items:center; color:#d6ebe7; font-size:11px; font-weight:700; line-height:1; text-align:center; text-shadow:0 1px 3px #00151f,0 1px 3px #00151f; pointer-events:none; }
+.geo-ocean { color:#8fb7c6; font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:1px; white-space:nowrap; }
+@media(max-width:700px) {
+  .map-wrap { min-height:355px; }
+  .geo-label { font-size:9px; }
+  .geo-ocean { font-size:8px; }
+}
+#map .leaflet-control-scale-line { color:#c6e4df; background:#062631d9; border-color:#81a7ab; text-shadow:none; }
+@media(max-width:700px) {
+  .geo-label { width:76px !important; margin-left:-38px !important; }
+}
