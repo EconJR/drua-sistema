@@ -12,16 +12,24 @@
     <span>Sobre DRUA</span>
   </button>
 </nav><div class="header-right"><span class="demo-pill"><i></i> Simulación activa</span><button class="icon-button" id="help" aria-label="Cómo usar DRUA">ⓘ</button></div></div><main data-view="mando"><div class="heading"><div><div class="eyebrow">SISTEMA DRUA · INTELIGENCIA MARÍTIMA PARA FIYI <span id="sectionLabel"></span></div><h1 id="title">Control de Mando</h1><p id="subtitle">Monitoreo simulado del abastecimiento alimentario marítimo en Oceanía</p></div><div class="heading-side"><button id="openRegister" class="register-button" aria-haspopup="dialog"><img src="assets/vessel.svg" alt="" width="23" height="23"> Inscribir buque <span aria-hidden="true">→</span></button><span class="demo-text">● &nbsp; DATOS FICTICIOS</span><button id="reset" class="text-button">↺ &nbsp; Reiniciar simulación</button></div></div><div class="stats"><div class="stat"><span class="stat-icon">♧</span><div><small>Rutas monitoreadas</small><strong id="statRoutes">09</strong></div></div><div class="stat"><span class="stat-icon amber">△</span><div><small>Alertas activas</small><strong id="statAlerts">0</strong></div></div><div class="stat"><span class="stat-icon">▤</span><div><small>Carga en tránsito</small><strong id="statCargo">0 <em>t</em></strong></div></div><div class="stat stat-extra"><span class="stat-icon">◷</span><div><small>Estado del sistema</small><strong class="stat-status">Simulación <span>activa</span></strong></div></div></div><section class="route-section route-explorer" aria-labelledby="explorerTitle">
-  <div class="explorer-heading">
-    <div><h2 id="explorerTitle">Explorar rutas</h2><p>Corredores de abastecimiento del Pacífico</p></div>
-    <div class="explorer-mode" role="group" aria-label="Agrupar rutas">
-      <button type="button" data-explorer-mode="origin" aria-pressed="true">Por origen</button>
-      <button type="button" data-explorer-mode="destination" aria-pressed="false">Por destino</button>
+  <div class="explorer-toolbar">
+    <div class="explorer-heading">
+      <h2 id="explorerTitle">Explorar rutas</h2>
+      <p>Corredores de abastecimiento del Pacífico</p>
     </div>
-  </div>
-  <div class="explorer-filters">
-    <div><p id="routeGroupLabel">Región de origen</p><div id="routeGroups" role="group" aria-labelledby="routeGroupLabel"></div></div>
-    <label>Estado <select id="routeState"><option value="all">Todos los estados</option><option value="normal">Ruta normal</option><option value="ordinary">No crítica</option><option value="critical">Crítica</option></select></label>
+    <div class="explorer-filters" role="group" aria-label="Filtros de rutas">
+      <div class="explorer-mode" role="group" aria-label="Agrupar rutas">
+        <button type="button" data-explorer-mode="origin" aria-pressed="true">Por origen</button>
+        <button type="button" data-explorer-mode="destination" aria-pressed="false">Por destino</button>
+      </div>
+      <div class="explorer-filter-fields">
+        <div class="explorer-groups-field">
+          <p id="routeGroupLabel">Región de origen</p>
+          <div id="routeGroups" role="group" aria-labelledby="routeGroupLabel"></div>
+        </div>
+        <label>Estado <select id="routeState"><option value="all">Todos los estados</option><option value="normal">Ruta normal</option><option value="ordinary">No crítica</option><option value="critical">Crítica</option></select></label>
+      </div>
+    </div>
   </div>
   <div class="main-grid explorer-grid">
     <div class="explorer-list">
