@@ -7,3 +7,12 @@ main.non-dashboard .stats,main.non-dashboard .main-grid,main.non-dashboard .rout
 @media(max-width:700px){.masthead{height:70px;padding:0 12px;flex-wrap:nowrap}.brand{font-size:26px}.brand-icon{font-size:32px}.identity{gap:7px}.fiji-flag{width:32px;height:22px}.mast-divider{margin:0 3px}.fao-brand img{width:34px;height:34px}.partner img{width:36px;height:42px}.partner div{display:none}.mast-island{inset:0 15% 0 43%}.navigation{padding:0 10px;height:47px;gap:0}.navigation nav{order:0;flex:1;width:auto;height:100%;gap:4px}.navigation .nav{padding:0 10px}.navigation .nav span{font-size:14px;margin-right:3px}.navigation .header-right{display:none}.shell>main{padding:18px 12px}.heading h1{font-size:29px}.heading p{display:block;border:0;padding:0;margin:5px 0 0}.register-button{font-size:12px;padding:10px}.main-grid{grid-template-columns:1fr}.side{display:block}.register-panel{grid-column:auto}.register-panel .form-grid{grid-template-columns:1fr 1fr}.map-route-summary{display:none}#map{height:350px}.footer-partners{display:none}footer{flex-wrap:wrap}.map-top h2{font-size:16px}.stats{gap:6px}.stat{padding:9px}.stat strong{font-size:20px}.stat-icon{font-size:21px}}
 @media(max-width:430px){.partner{display:none}.fao-brand img{width:30px}.masthead{gap:0}.register-panel .form-grid{grid-template-columns:1fr}.heading-side{min-width:0}.stats .stat-icon{display:none}.stat small{font-size:9px}.map-top h2 span{display:none}}
 .country-map-label{color:#eaf7ef;font-size:10px;font-weight:700;letter-spacing:.8px;text-align:center;text-shadow:0 1px 4px #001820,0 1px 4px #001820;white-space:nowrap;pointer-events:none}
+
+.ship-marker .marker-inner { width:32px; height:32px; }
+.ship-marker .marker-inner.other { width:24px; height:24px; }
+.ship-marker .marker-inner.other img { width:19px; height:19px; }
+#threatDialog { background:var(--panel); }
+#threatDialog::backdrop { background:#00121bce; }
+#threatDialog label { display:grid; gap:5px; margin:12px 0; }
+#threatDialog select { background:var(--soft); color:var(--text); border:1px solid var(--line); padding:8px; border-radius:5px; }
+#simulate:disabled { opacity:.55; cursor:default; }

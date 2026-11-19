@@ -1,38 +1,448 @@
 'use strict';
-// Every scenario is illustrative. Waypoints are schematic and not navigation instructions.
-const oceanRoutes=[
-{key:'brisbane-suva',origin:'Brisbane, Australia',destination:'Suva, Fiyi',normal:[[-27.47,153.1],[-27,154],[-25,157],[-23,163],[-21,169],[-18.5,176],[-18.14,178.44]],days:8},
-{key:'portmoresby-honiara',origin:'Port Moresby, Papúa Nueva Guinea',destination:'Honiara, Islas Salomón',normal:[[-9.47,147.15],[-10,149],[-11,152],[-11,155],[-10,158],[-9.43,159.95]],days:5},
-{key:'auckland-sydney',origin:'Auckland, Nueva Zelanda',destination:'Sídney, Australia',normal:[[-36.84,174.76],[-36,173],[-35,169],[-34,165],[-33,160],[-33,155],[-33.86,151.21]],days:7},
-{key:'buenosaires-suva',origin:'Buenos Aires, Argentina',destination:'Suva, Fiyi',normal:[[-34.6,-58.38],[-36,-55],[-40,-53],[-46,-55],[-54,-60],[-56.5,-66],[-57,-72],[-53,-80],[-40,-105],[-30,-130],[-22,-155],[-19,-175],[-18.14,178.44]],days:42},
-{key:'singapore-suva',origin:'Singapur',destination:'Suva, Fiyi',normal:[[1.25,103.8],[0,105],[-3,108],[-6,112],[-7,118],[-9,125],[-11,133],[-12,143],[-14,153],[-17,164],[-18,172],[-18.14,178.44]],days:20}
+
+const byId = id => document.getElementById(id);
+const fmt = number => new Intl.NumberFormat('es-ES').format(number);
+const countryNames = new Intl.DisplayNames(['es'], {type:'region'});
+const today = () => new Intl.DateTimeFormat('sv-SE',{timeZone:'Pacific/Fiji'}).format(new Date());
+const storageKey = 'drua-vessels-v1'; // Keep compatibility with registrations made before the rename.
+const legacyPorts = {
+  'brisbane-suva':['AUBNE','FJSUV'], 'portmoresby-honiara':['PGPOM','SBHIR'],
+  'auckland-sydney':['NZAKL','AUSYD'], 'buenosaires-suva':['ARBUE','FJSUV'],
+  'singapore-suva':['SGSIN','FJSUV']
+};
+const presets = [
+  ['MV Pacific Harvest','Fiyi','AUBNE','FJSUV','Trigo a granel',28000,8],
+  ['MV Island Seed','Papúa Nueva Guinea','PGPOM','SBHIR','Semillas certificadas',5000,5],
+  ['MV Southern Grain','Nueva Zelanda','NZAKL','AUSYD','Alimentos no perecederos',18000,7],
+  ['MV Esperanza del Pacífico','Argentina','ARBUE','FJSUV','Maíz a granel',32000,42],
+  ['MV Oceania Supply','Fiyi','SGSIN','FJSUV','Fertilizantes',24000,20],
+  ['MV Alborada','Estados Unidos','USMSY','FJSUV','Arroz a granel',41000,31,'panama'],
+  ['MV Esperanza','Países Bajos','NLRTM','AUSYD','Trigo a granel',32000,45,'suez'],
+  ['MV Fertilidad','Emiratos Árabes Unidos','AEDXB','SBHIR','Fertilizante fosfatado',25000,27,'ormuz'],
+  ['MV Semilla','India','INMAA','FJSUV','Semillas certificadas',5000,26,'malacca'],
+  ['MV Aurora','Estados Unidos','USLAX','NZAKL','Maíz a granel',40000,23,'pacific_ocean'],
+  ['MV Horizonte','Países Bajos','NLRTM','FJSUV','Fertilizante nitrogenado',28500,44,'panama']
 ];
-const builtins=[['MV Pacific Harvest','Fiyi','brisbane-suva','Trigo a granel',28000],['MV Island Seed','Papúa Nueva Guinea','portmoresby-honiara','Semillas certificadas',5000],['MV Southern Grain','Nueva Zelanda','auckland-sydney','Alimentos no perecederos',18000],['MV Esperanza del Pacífico','Argentina','buenosaires-suva','Maíz a granel',32000],['MV Oceania Supply','Fiyi','singapore-suva','Fertilizantes',24000]];
-function makeRoute(ship,flag,route,cargo,tonnes,days,departure,custom=false){let p=oceanRoutes.find(x=>x.key===route);return {id:custom?'registered-'+Date.now()+'-'+Math.random().toString(36).slice(2,7):route,name:p.origin.split(',')[0]+' – '+p.destination.split(',')[0],short:p.destination.split(',')[0],seas:'Corredor ilustrativo · Oceanía',origin:p.origin,destination:p.destination,ship,shipId:custom?'BUQUE INSCRITO':'SIMULADO',flag,cargo,tonnes:Number(tonnes),days:Number(days||p.days),departure:departure||new Date().toISOString().slice(0,10),normal:p.normal,custom,point:'tramo del Pacífico',threat:p.normal[Math.min(2,p.normal.length-1)],diverge:Math.min(1,p.normal.length-2),alternative:p.key==='brisbane-suva'?[[-27,154],[-29,157],[-27,163],[-23,170],[-20,175],[-18.14,178.44]]:null,extra:p.key==='brisbane-suva'?2:null};}
-let saved=[];try{saved=JSON.parse(localStorage.getItem('drua-vessels-v1')||'[]');if(!Array.isArray(saved))saved=[]}catch(e){saved=[]}
-const routes=builtins.map(([ship,flag,key,cargo,tonnes])=>makeRoute(ship,flag,key,cargo,tonnes)).concat(saved.filter(x=>x&&oceanRoutes.some(p=>p.key===x.route)&&typeof x.ship==='string'&&typeof x.flag==='string'&&typeof x.cargo==='string'&&Number(x.tonnes)>0&&Number(x.days)>0&&/^\d{4}-\d{2}-\d{2}$/.test(x.departure)).map(x=>makeRoute(x.ship,x.flag,x.route,x.cargo,x.tonnes,x.days,x.departure,true)));
+const portLabel = code => {
+  const [name,country] = seaPorts[code];
+  return (name==='Singapore'?'Singapur':name==='Sydney'?'Sídney':name==='Rotterdam'?'Róterdam':name)+', '+countryNames.of(country);
+};
+let saved;
+try { saved = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { saved = []; }
+if (!Array.isArray(saved)) saved = [];
 
-const byId=id=>document.getElementById(id);const fmt=n=>new Intl.NumberFormat('es-ES').format(n);let selected=0,phase='normal',progress=0,view='mando',coords=[],segments=[],simDays=0,speed=1,lastTime=performance.now();let map=L.map('map',{zoomControl:false,zoomSnap:.25,minZoom:1,maxZoom:6,worldCopyJump:false,attributionControl:true}).setView([-18,160],3);L.control.zoom({position:'bottomleft'}).addTo(map);let satelliteReady=false;const imagery=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Imágenes &copy; Esri',maxZoom:6});imagery.on('tileload',()=>{if(!satelliteReady){satelliteReady=true;updateLand()}});imagery.addTo(map);map.attributionControl.setPrefix('');map.attributionControl.addAttribution('Natural Earth');let land=L.geoJSON(null,{interactive:false,style:()=>({color:getComputedStyle(document.documentElement).getPropertyValue('--borderland'),weight:.45,fillColor:'#283e4e',fillOpacity:1})}).addTo(map);const layers=L.layerGroup().addTo(map);let shipMarker,otherMarkers=[];
-fetch('vendor/world.geojson').then(r=>{if(!r.ok)throw new Error('mapa');return r.json()}).then(data=>{land.addData(data);updateLand()}).catch(()=>{byId('mapMessage').textContent='No se pudo cargar el mapa; recarga la página.'});
-function updateLand(){const s=getComputedStyle(byId('app'));land.setStyle({color:s.getPropertyValue('--borderland').trim(),fillColor:s.getPropertyValue('--land').trim(),fillOpacity:satelliteReady?.05:1,opacity:satelliteReady?.12:1,weight:.45})}
-function linePieces(path){const pieces=[[]];for(let i=0;i<path.length;i++){let [lat,lon]=path[i];lon=((lon+180)%360+360)%360-180;if(i){let [pl,po]=path[i-1];po=((po+180)%360+360)%360-180;if(Math.abs(lon-po)>180){let adjusted=lon+(lon<po?360:-360),border=lon<po?180:-180,t=(border-po)/(adjusted-po),cross=pl+(lat-pl)*t;pieces[pieces.length-1].push([cross,border]);pieces.push([[cross,-border]])}}pieces[pieces.length-1].push([lat,lon])}return pieces}
-function line(path,style){if(path&&path.length>1)linePieces(path).forEach(p=>L.polyline(p,style).addTo(layers))}
-function setPath(path){coords=path;segments=[];let sum=0;for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];let dl=b[1]-a[1];if(dl>180)dl-=360;if(dl< -180)dl+=360;let d=Math.hypot((b[0]-a[0]),dl*Math.cos((a[0]+b[0])*Math.PI/360));segments.push(d);sum+=d}segments=segments.map(x=>x/sum)}
-function positionAt(t){let remain=t;for(let i=0;i<segments.length;i++){if(remain<=segments[i]||i===segments.length-1){let f=Math.max(0,Math.min(1,remain/segments[i]));let a=coords[i],b=coords[i+1],dl=b[1]-a[1];if(dl>180)dl-=360;if(dl< -180)dl+=360;let lng=((a[1]+dl*f+180)%360+360)%360-180;return[a[0]+(b[0]-a[0])*f,lng]}remain-=segments[i]}return coords[coords.length-1]}
-function makePort(latlng,name){const lng=((latlng[1]+180)%360+360)%360-180;L.circleMarker([latlng[0],lng],{radius:3,color:'#b6eee1',weight:2,fillColor:'#e9f9f6',fillOpacity:1}).addTo(layers);L.marker([latlng[0],lng],{interactive:false,icon:L.divIcon({className:'port-label',html:escapeHtml(name),iconAnchor:[-7,4]})}).addTo(layers)}
-function redraw(){const r=routes[selected];layers.clearLayers();otherMarkers=[];const light=view==='atlas';[['AUSTRALIA',-24,135],['PAPÚA NUEVA GUINEA',-5,144],['ISLAS SALOMÓN',-7,161],['NUEVA ZELANDA',-39,174],['FIYI',-16,178],['VANUATU',-15,167],['SAMOA',-14,-172]].forEach(([name,lat,lng])=>L.marker([lat,lng],{interactive:false,icon:L.divIcon({className:'country-map-label',html:name,iconSize:[110,15],iconAnchor:[55,7]})}).addTo(layers));routes.forEach((other,i)=>{if(i===selected)return;line(other.normal,{color:light?'#789e9a':'#7796a0',weight:1,opacity:.25});const m=L.marker(other.normal[0],{icon:L.divIcon({className:'ship-marker',html:'<div class="marker-inner other">➤</div>',iconSize:[20,20],iconAnchor:[10,10]}),title:other.ship+' · '+other.name,keyboard:true}).addTo(layers).bindTooltip(escapeHtml(other.ship+' · '+other.name),{direction:'top'});m.on('click',()=>changeRoute(i));otherMarkers.push({marker:m,route:other,index:i})});line(r.normal,{color:light?'#16988e':'#54c6bd',weight:3,opacity:.92});if(phase!=='normal'&&r.alternative){line(r.alternative,{color:light?'#be7a26':'#f2b35a',weight:3,dashArray:'7 7',opacity:.95})}makePort(r.normal[0],r.origin);makePort(r.normal[r.normal.length-1],r.destination);if(phase!=='normal'){L.marker(r.threat,{icon:L.divIcon({className:'threat-marker',html:'<div class="threat-pin">⚠️</div>',iconSize:[23,23],iconAnchor:[11,11]}),title:'Amenaza simulada: '+r.point}).addTo(layers).bindTooltip('Amenaza simulada · '+r.point)}let currentPath=phase==='diverted'?r.alternative:r.normal;setPath(currentPath);shipMarker=L.marker(positionAt(progress),{icon:L.divIcon({className:'ship-marker',html:'<div class="marker-inner '+(phase!=='normal'?'active':'')+'">➤</div>',iconSize:[29,29],iconAnchor:[14,14]}),title:r.ship,keyboard:true}).addTo(layers).bindTooltip(escapeHtml(r.ship+' · '+r.cargo),{direction:'top',offset:[0,-12]});shipMarker.on('click',()=>{shipMarker.openTooltip();document.querySelector('.detail').scrollIntoView({behavior:'smooth',block:'nearest'})});}
-function updateUI(){const r=routes[selected],alert=phase!=='normal',diverted=phase==='diverted';byId('shipName').textContent=r.ship;byId('shipId').textContent=r.shipId;byId('shipCargo').textContent=r.cargo;byId('shipJourney').textContent=r.origin+' → '+r.destination;byId('shipVolume').textContent=fmt(r.tonnes)+' t';byId('etaBig').textContent=r.days+' días';byId('etaOrigin').textContent=r.origin.split(',')[0];byId('etaDestination').textContent=r.destination.split(',')[0];byId('shipEta').textContent=r.days+' días · llegada '+arrival(r)+' · simulada';byId('shipStatus').textContent=diverted?'En desvío simulado':alert?'Amenaza en la ruta':'En ruta simulada';byId('statAlerts').textContent=alert?'1':'0';byId('statCargo').innerHTML=fmt(routes.reduce((sum,ship)=>sum+ship.tonnes,0))+' <em>t</em>';byId('riskBadge').className='risk-badge'+(alert?' warning':'');byId('riskBadge').textContent=alert?'▲  Amenaza simulada':'●  Sin alerta';byId('riskText').textContent=alert?(r.alternative?'Paso afectado: '+r.point+'. Desvío esquemático: +'+r.extra+' días estimados frente a los '+r.days+' días de la ruta base.':'Paso afectado: '+r.point+'. No hay alternativa marítima modelada en este escenario.'):'Activa una amenaza para explorar un escenario de interrupción ficticio.';byId('simulate').classList.toggle('hidden',alert);byId('divert').classList.toggle('hidden',!alert||!r.alternative||diverted);byId('scenarioNote').textContent=diverted?'El buque sigue la trayectoria alternativa simulada. No es una ruta de navegación.':alert?(r.alternative?'Escenario situado en el punto de decisión. Alternativa simulada: '+(r.days+r.extra)+' días frente a '+r.days+' días en la ruta habitual.':'No se ha modelado una vía marítima alternativa para este caso.'):'Punto estratégico: '+r.point+'. Selecciona «Simular amenaza».';byId('mapMessage').textContent=diverted?'Desvío simulado en curso · '+r.ship:alert?'Amenaza simulada · '+r.point:r.name+' · '+r.seas;byId('mapTag').textContent='/ '+r.short;renderTables();byId('reportText').textContent=r.name+': '+r.ship+' transporta '+fmt(r.tonnes)+' t de '+r.cargo.toLowerCase()+'. '+(alert?'Se simuló una amenaza en '+r.point+'. '+(r.alternative?'La alternativa ilustrativa añade '+r.extra+' días al tiempo base de '+r.days+' días.':'No se modeló una alternativa marítima.'):'No hay amenazas activas en este escenario.')+' Todos los datos y tiempos son ficticios.';document.querySelectorAll('.route-item').forEach((b,i)=>{b.classList.toggle('active',i===selected);b.setAttribute('aria-pressed',i===selected?'true':'false')})}
-function changeRoute(i){selected=i;phase='normal';progress=.03;updateUI();redraw();map.setView(routemapCenter(routes[i]),routes[i].id==='buenosaires-suva'?1.25:3,{animate:true})}
-const list=byId('routeList');function buildRouteList(){list.replaceChildren();routes.forEach((r,i)=>{let b=document.createElement('button');b.className='route-item';b.innerHTML='<small>'+String(i+1).padStart(2,'0')+' / BUQUE</small><strong>'+escapeHtml(r.ship)+'</strong><span>'+escapeHtml(r.name)+'</span>';b.addEventListener('click',()=>changeRoute(i));list.appendChild(b)});byId('statRoutes').textContent=String(routes.length).padStart(2,'0');byId('routeCount').textContent=String(routes.length).padStart(2,'0')+' BUQUES';}buildRouteList();
-byId('simulate').addEventListener('click',()=>{const r=routes[selected];setPath(r.normal);progress=segments.slice(0,r.diverge).reduce((a,b)=>a+b,0);phase='threat';updateUI();redraw()});byId('divert').addEventListener('click',()=>{phase='diverted';progress=0;updateUI();redraw()});byId('reset').addEventListener('click',()=>{phase='normal';progress=0;updateUI();redraw()});
-// Alert animation stops exactly at the preselected diversion waypoint until the user confirms the change.
-function otherPosition(path,t){let step=t*(path.length-1),i=Math.min(Math.floor(step),path.length-2),f=step-i,a=path[i],b=path[i+1],delta=b[1]-a[1];if(delta>180)delta-=360;if(delta< -180)delta+=360;return [a[0]+(b[0]-a[0])*f,((a[1]+delta*f+180)%360+360)%360-180]}
-function tick(now){const dt=Math.min(now-lastTime,1000);lastTime=now;const r=routes[selected];const delta=dt/60000*speed;simDays+=delta;if(phase==='threat'){let limit=0;for(let i=0;i<r.diverge;i++)limit+=segments[i]||0;progress=Math.min(limit,progress+delta/r.days)}else{progress+=delta/r.days;if(progress>1)progress=1}if(shipMarker&&coords.length>1)shipMarker.setLatLng(positionAt(progress));byId('etaProgress').style.width=Math.round(progress*100)+'%';byId('etaBig').textContent=Math.max(0,Math.ceil(r.days*(1-progress)))+' días';otherMarkers.forEach(o=>o.marker.setLatLng(otherPosition(o.route.normal,Math.min(.15+simDays/o.route.days,1))));requestAnimationFrame(tick)}
-const titles={mando:['Centro de mando','Monitoreo simulado del abastecimiento alimentario marítimo en Oceanía','VISTA GENERAL'],atlas:['Atlas marítimo','Estado de rutas y carga agroestratégica en Oceanía','MAPA GLOBAL'],inteligencia:['Inteligencia global','Riesgos, tendencias y seguridad del suministro alimentario marítimo','ANÁLISIS DE RIESGOS'],reportes:['Reportes','Resumen del escenario marítimo seleccionado','RESUMEN'],sobre:['Sobre DRUA','Seguridad alimentaria y abastecimiento marítimo en Oceanía','ACERCA DEL PROYECTO']};
-document.querySelectorAll('.nav').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;document.querySelector('main').classList.toggle('non-dashboard',view!=='mando');document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('active',n===b));byId('app').classList.toggle('light',view==='atlas');byId('app').classList.toggle('intelligence',view==='inteligencia');byId('title').textContent=titles[view][0];byId('subtitle').textContent=titles[view][1];byId('sectionLabel').textContent=titles[view][2];byId('reports').classList.toggle('hidden',view!=='reportes');byId('fleet').classList.toggle('hidden',!['atlas','inteligencia'].includes(view));byId('about').classList.toggle('hidden',view!=='sobre');renderTables();updateLand();redraw();if(view==='inteligencia'||view==='atlas')byId('fleet').scrollIntoView({behavior:'smooth',block:'nearest'});if(view==='reportes')byId('reports').scrollIntoView({behavior:'smooth',block:'nearest'});if(view==='sobre')byId('about').scrollIntoView({behavior:'smooth',block:'nearest'});setTimeout(()=>map.invalidateSize(),100)}));byId('mapKey').addEventListener('click',()=>byId('legend').classList.toggle('hidden'));byId('help').addEventListener('click',()=>byId('helpDialog').classList.remove('hidden'));document.querySelectorAll('.close,.close-action').forEach(b=>b.addEventListener('click',()=>byId('helpDialog').classList.add('hidden')));byId('helpDialog').addEventListener('click',e=>{if(e.target===byId('helpDialog'))byId('helpDialog').classList.add('hidden')});document.addEventListener('keydown',e=>{if(e.key==='Escape'){byId('helpDialog').classList.add('hidden');byId('legend').classList.add('hidden')}});byId('print').addEventListener('click',()=>window.print());initRegistration();changeRoute(0);requestAnimationFrame(tick);
+function prepareVessel(entry, custom = true) {
+  const [from,to] = entry.from && entry.to ? [entry.from,entry.to] : legacyPorts[entry.route] || [];
+  if (!seaPorts[from] || !seaPorts[to] || from===to) return null;
+  if (!Number.isFinite(Date.parse(entry.departure+'T12:00:00Z'))) return null;
+  const normal = sailingPlan(from,to,entry.passage);
+  if (!normal) return null;
+  const speed = Math.max(1,normal.km)/entry.days;
+  return {...entry,from,to,normal,active:normal,custom,speed,elapsed:0,travelled:0,
+    alert:null,status:'En tránsito',origin:portLabel(from),destination:portLabel(to)};
+}
 
-function escapeHtml(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function routemapCenter(r){return r.normal.some(p=>p[1]<-40)?[-20,-135]:[-18,160]}
-function arrival(r){const d=new Date(r.departure+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+r.days);return d.toISOString().slice(0,10)}
-function renderTables(){const rows=routes.map((r,i)=>'<tr><td>'+escapeHtml(r.ship)+'<small>'+escapeHtml(r.flag)+'</small></td><td>'+escapeHtml(r.origin)+'</td><td>'+escapeHtml(r.destination)+'</td><td>'+escapeHtml(r.cargo)+'</td><td>'+fmt(r.tonnes)+' t</td><td>'+escapeHtml(r.departure)+'</td><td>'+arrival(r)+'</td><td>'+r.days+'</td><td>'+(i===selected&&phase!=='normal'?(phase==='diverted'?'Desvío':'Alerta'):'En ruta')+' · simulada</td></tr>').join('');byId('fleetBody').innerHTML=rows;byId('reportBody').innerHTML=rows;}
-function initRegistration(){const orig=byId('originSelect'),dest=byId('destinationSelect');const fillDest=()=>{const matches=oceanRoutes.filter(r=>r.origin===orig.value);dest.replaceChildren(...matches.map(r=>{let o=document.createElement('option');o.value=r.key;o.textContent=r.destination;return o}))};[...new Set(oceanRoutes.map(r=>r.origin))].forEach(name=>{let o=document.createElement('option');o.value=name;o.textContent=name;orig.appendChild(o)});orig.addEventListener('change',fillDest);fillDest();const form=byId('registerForm');form.elements.departure.value=new Date().toISOString().slice(0,10);let step=1;const setStep=n=>{step=n;document.querySelectorAll('.step-fields').forEach(el=>el.classList.toggle('hidden',Number(el.dataset.step)!==step));document.querySelectorAll('[data-step-indicator]').forEach(el=>{el.classList.toggle('current',Number(el.dataset.stepIndicator)===step);el.classList.toggle('completed',Number(el.dataset.stepIndicator)<step)});byId('prevStep').classList.toggle('hidden',step===1);byId('nextStep').classList.toggle('hidden',step===3);byId('submitRegistration').classList.toggle('hidden',step!==3)};byId('openRegister').addEventListener('click',()=>{if(view!=='mando')document.querySelector('[data-view=mando]').click();byId('registerDialog').scrollIntoView({behavior:'smooth',block:'center'});form.elements.ship.focus({preventScroll:true})});byId('nextStep').addEventListener('click',()=>{const active=form.querySelector('[data-step="'+step+'"]');for(const field of active.querySelectorAll('input,select'))if(!field.reportValidity())return;if(step===2){const d=Object.fromEntries(new FormData(form));byId('registrationSummary').innerHTML='<b>'+escapeHtml(d.ship)+'</b><br>'+escapeHtml(d.flag)+' · '+escapeHtml(d.cargo)+'<br>'+escapeHtml(d.origin)+' → '+escapeHtml(dest.selectedOptions[0].textContent)+'<br>'+escapeHtml(d.tonnes)+' t · '+escapeHtml(d.days)+' días simulados'}setStep(Math.min(3,step+1))});byId('prevStep').addEventListener('click',()=>setStep(Math.max(1,step-1)));byId('speed').addEventListener('change',e=>{speed=Number(e.target.value)});form.addEventListener('submit',e=>{e.preventDefault();const data=Object.fromEntries(new FormData(form));const p=oceanRoutes.find(r=>r.key===data.destination&&r.origin===data.origin);if(!p){byId('formError').textContent='Selecciona una ruta disponible.';return}const entry={ship:data.ship.trim(),flag:data.flag.trim(),cargo:data.cargo,tonnes:Number(data.tonnes),days:Number(data.days),departure:data.departure,route:p.key};if(!entry.ship||!entry.flag||entry.tonnes<1||entry.tonnes>500000||entry.days<1||entry.days>365||!entry.departure){byId('formError').textContent='Completa todos los campos con valores válidos.';return}try{saved.push(entry);localStorage.setItem('drua-vessels-v1',JSON.stringify(saved))}catch(err){saved.pop();byId('formError').textContent='No se pudo guardar en este navegador.';return}routes.push(makeRoute(entry.ship,entry.flag,entry.route,entry.cargo,entry.tonnes,entry.days,entry.departure,true));buildRouteList();byId('formError').textContent='';setStep(1);form.reset();form.elements.departure.value=new Date().toISOString().slice(0,10);fillDest();document.querySelector('[data-view=mando]').click();changeRoute(routes.length-1);});}
+const routes = presets.map(([ship,flag,from,to,cargo,tonnes,days,passage]) =>
+  prepareVessel({ship,flag,from,to,cargo,tonnes,days,passage,departure:today()},false)
+).filter(Boolean);
+for (const entry of saved) {
+  if (!entry || typeof entry.ship!=='string' || typeof entry.flag!=='string' || typeof entry.cargo!=='string'
+      || !Number.isFinite(Number(entry.days)) || Number(entry.days)<=0 || !Number.isFinite(Number(entry.tonnes))) continue;
+  const vessel = prepareVessel(entry);
+  if (vessel) routes.push(vessel);
+}
+let selected = 0;
+let view = 'mando';
+let clockSpeed = 1;
+const map = L.map('map',{zoomControl:false,zoomSnap:.25,minZoom:1,maxZoom:6})
+  .setView([-18,160],3);
+L.control.zoom({position:'bottomleft'}).addTo(map);
+map.attributionControl.setPrefix('');
+const land = L.geoJSON(null,{interactive:false,style:{color:'#327581',weight:.45,fillColor:'#1c5360',fillOpacity:1}}).addTo(map);
+const imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+  attribution:'Imágenes &copy; Esri',maxZoom:6
+}).addTo(map);
+imagery.once('tileload',()=>land.setStyle({fillOpacity:.05,opacity:.12}));
+map.attributionControl.addAttribution('Natural Earth');
+fetch('vendor/world.geojson').then(response=>response.json()).then(data=>{
+  for (const shift of [-360,0,360]) {
+    land.addData(data.features.map(feature=>({...feature,geometry:{
+      ...feature.geometry,coordinates:shiftGeometry(feature.geometry.coordinates,shift)
+    }})));
+  }
+}).catch(()=>{ byId('mapMessage').textContent='No se pudo cargar la cartografía base.'; });
+const layers = L.layerGroup().addTo(map);
+const markers = [];
+const vesselIcon = '<img src="assets/vessel.svg" alt="" width="24" height="24">';
+function shiftGeometry(coords,shift) {
+  return typeof coords[0]==='number' ? [coords[0]+shift,coords[1]] : coords.map(p=>shiftGeometry(p,shift));
+}
+function mapPoint([lat,lon], center=map.getCenter().lng) {
+  return [lat,center+longitudeDelta(center,lon)];
+}
+function unwrap(path) {
+  const output = [];
+  for (const point of path) output.push(mapPoint(point,output.at(-1)?.[1] ?? 160));
+  return output;
+}
+function drawLine(path,options) {
+  const line = unwrap(path);
+  for (const shift of [-360,0,360]) {
+    L.polyline(line.map(([lat,lon])=>[lat,lon+shift]),options).addTo(layers);
+  }
+}
+function measure(plan) {
+  if (plan.distances) return;
+  plan.distances = [0];
+  for(let i=1;i<plan.path.length;i++) {
+    plan.distances.push(plan.distances[i-1]+seaDistance(plan.path[i-1],plan.path[i]));
+  }
+  plan.length = plan.distances.at(-1);
+}
+function position(vessel) {
+  const plan = vessel.active;
+  measure(plan);
+  let lo=1,hi=plan.path.length-1;
+  while (lo<hi) {
+    const middle=(lo+hi)>>1;
+    if (plan.distances[middle]<vessel.travelled) lo=middle+1;
+    else hi=middle;
+  }
+  const a=plan.path[lo-1],b=plan.path[lo];
+  const segment=plan.distances[lo]-plan.distances[lo-1];
+  const fraction=segment ? Math.min(1,(vessel.travelled-plan.distances[lo-1])/segment) : 0;
+  return {point:[a[0]+(b[0]-a[0])*fraction,a[1]+longitudeDelta(a[1],b[1])*fraction],edge:lo-1};
+}
+function redraw() {
+  layers.clearLayers();
+  markers.length=0;
+  routes.forEach((vessel,index)=>{
+    const current = index===selected;
+    drawLine(vessel.normal.path,{color:current?'#54e6d1':'#75c7c3',weight:current?3:1,opacity:current?.9:.36,interactive:false});
+    if (vessel.alert?.alternative) {
+      drawLine(vessel.alert.alternative.path,{color:'#ffc66c',dashArray:'7 6',weight:current?4:2,interactive:false});
+    }
+    if (current && vessel.alert) {
+      L.circleMarker(mapPoint(vessel.alert.point),{color:'#ffc66c',radius:8,fillOpacity:.45})
+        .addTo(layers).bindTooltip(vessel.alert.label);
+    }
+    if (current) {
+      for (const [code,label] of [[vessel.from,vessel.origin],[vessel.to,vessel.destination]]) {
+        L.circleMarker(mapPoint(portPosition(code)),{radius:4,color:'#a0fff0',fillOpacity:.9})
+          .addTo(layers).bindTooltip(Object.assign(document.createElement("span"),{textContent:label}));
+      }
+    }
+    const marker=L.marker(mapPoint(position(vessel).point),{
+      title:vessel.ship,alt:vessel.ship,
+      icon:L.divIcon({className:'ship-marker',html:'<div class="marker-inner'+(current?'':' other')+'">'+vesselIcon+'</div>',
+        iconSize:current?[32,32]:[24,24],iconAnchor:current?[16,16]:[12,12]})
+    }).addTo(layers);
+    const label=document.createElement('span');
+    label.textContent=vessel.ship;
+    marker.bindTooltip(label).on('click',()=>selectVessel(index));
+    markers.push(marker);
+  });
+}
+map.on('moveend',redraw);
+
+function selectVessel(index,focus=true) {
+  selected=index;
+  const vessel=routes[index];
+  if(focus) {
+    const bounds=L.latLngBounds(unwrap(vessel.active.path));
+    map.fitBounds(bounds,{padding:[24,24],maxZoom:4,animate:false});
+  }
+  redraw();
+  updateUI();
+}
+
+function arrival(vessel) {
+  const date=new Date(vessel.departure+'T12:00:00Z');
+  date.setUTCDate(date.getUTCDate()+transitDays(vessel));
+  return date.toISOString().slice(0,10);
+}
+function transitDays(vessel) {
+  return vessel.alert?.alternative ? Math.ceil(vessel.alert.days) : Number(vessel.days);
+}
+function renderReports() {
+  const rows=routes.map(vessel=>{
+    const cells=[vessel.ship,vessel.flag,vessel.origin,vessel.destination,vessel.cargo,
+      fmt(vessel.tonnes)+' t',vessel.departure,arrival(vessel),transitDays(vessel),vessel.status];
+    const row=document.createElement('tr');
+    for(const value of cells) {
+      const td=document.createElement('td');
+      td.textContent=value;
+      row.append(td);
+    }
+    return row;
+  });
+  byId('reportBody').replaceChildren(...rows);
+}
+function updateUI() {
+  const vessel=routes[selected];
+  const passage=Object.entries(strategicPassages)
+    .filter(([key])=>vessel.normal.edges.some(edge=>seaEdges[edge]?.[3]===key))
+    .map(([,label])=>label).join(' · ');
+  const fields={shipName:vessel.ship,shipId:vessel.custom?'BUQUE INSCRITO':'SIMULADO',shipCargo:vessel.cargo,
+    shipJourney:vessel.origin+' → '+vessel.destination,shipVolume:fmt(vessel.tonnes)+' t',
+    shipEta:transitDays(vessel)+' días · '+arrival(vessel),shipStatus:vessel.status,
+    etaOrigin:seaPorts[vessel.from][0],etaDestination:seaPorts[vessel.to][0],
+    statAlerts:routes.filter(s=>s.alert && s.status!=='Arribado').length,mapTag:'/ '+seaPorts[vessel.to][0],
+    mapMessage:vessel.origin+' → '+vessel.destination+' · '+fmt(Math.round(vessel.normal.km))+' km'+(passage?' · '+passage:''),
+    scenarioNote:vessel.alert?.message || 'Simula una amenaza en el recorrido pendiente.',
+    reportText:routes.length+' buques registrados en la simulación de abastecimiento marítimo de Oceanía.'};
+  for (const [id,value] of Object.entries(fields)) byId(id).textContent=value;
+  byId('simulate').disabled=Boolean(vessel.alert) || vessel.status==='Arribado';
+  byId('statCargo').textContent=fmt(routes.filter(v=>v.status!=='Arribado').reduce((sum,s)=>sum+Number(s.tonnes),0))+' t';
+  [...byId('routeList').children].forEach((button,index)=>{
+    button.classList.toggle('active',index===selected);
+    button.setAttribute('aria-pressed',index===selected);
+  });
+  updateEta(vessel);
+  renderReports();
+}
+function buildRouteList() {
+  byId('routeList').replaceChildren(...routes.map((vessel,index)=>{
+    const button=document.createElement('button');
+    button.className='route-item';
+    const name=document.createElement('strong'), journey=document.createElement('span');
+    name.textContent=vessel.ship;
+    journey.textContent=vessel.origin+' → '+vessel.destination;
+    button.append(name,journey);
+    button.onclick=()=>selectVessel(index);
+    return button;
+  }));
+  byId('statRoutes').textContent=String(routes.length).padStart(2,'0');
+  byId('routeCount').textContent=routes.length+' BUQUES';
+}
+
+function findDetour(vessel,severity,targetPassage) {
+  const plan=vessel.normal;
+  const {point,edge:current}=position(vessel);
+  const ahead=plan.edges.map((id,index)=>({id,index})).filter(({id,index})=>id>=0 && index>=current);
+  const threat=ahead.find(({id})=>targetPassage && seaEdges[id][3]===targetPassage)
+    || ahead[Math.floor(ahead.length/2)];
+  if (!threat) return null;
+  const passage=targetPassage && seaEdges[threat.id][3]===targetPassage ? targetPassage : null;
+  const [a,b]=seaEdges[threat.id];
+  const [lon,lat]=seaNodes[a], [endLon,endLat]=seaNodes[b];
+  const threatPoint=[(lat+endLat)/2,lon+longitudeDelta(lon,endLon)/2];
+  const label=passage ? strategicPassages[passage] : 'Tramo marítimo simulado';
+  const policy={blockedEdge:threat.id,blockedPassage:passage};
+  if (severity==='critical' && !passage) {
+    policy.avoidEdges=new Set(seaLinks[a].concat(seaLinks[b]).map(link=>link.index));
+  }
+  const alternatives=[];
+  const terminal=plan.path.length-2;
+  for (const index of [current,current+1]) {
+    if (index<1 || index>terminal || (index===current+1 && (current===threat.index ||
+        policy.avoidEdges?.has(plan.edges[current]) || (passage && seaEdges[plan.edges[current]]?.[3]===passage)))) continue;
+    const [nodeLat,nodeLon]=plan.path[index];
+    const currentEdge=seaEdges[plan.edges[index===terminal ? index-1 : index]];
+    const node=currentEdge?.slice(0,2).find(id=>seaNodes[id][0]===nodeLon && seaNodes[id][1]===nodeLat);
+    if(node===undefined) continue;
+    const next=routeBetween(node,portNode(vessel.to),policy);
+    if(next) alternatives.push({...next,km:next.km+seaDistance(point,plan.path[index]),
+      path:[point,...next.path,portPosition(vessel.to)]});
+  }
+  alternatives.sort((left,right)=>left.km-right.km);
+  const alternative=alternatives[0];
+  const message=alternative
+    ? label+' · Desvío automático de '+fmt(Math.round(alternative.km))+' km desde la posición actual.'
+    : label+' · La red simulada no ofrece un paso habilitado. El buque queda en espera.';
+  return {point:threatPoint,label,message,alternative,severity,days:vessel.elapsed+(alternative?.km ?? 0)/vessel.speed};
+}
+
+const confirmation = byId('threatDialog');
+byId('simulate').onclick=()=>{
+  const vessel=routes[selected];
+  const upcoming=new Set(vessel.normal.edges.slice(position(vessel).edge)
+    .map(id=>seaEdges[id]?.[3]).filter(passage=>strategicPassages[passage]));
+  const scope=byId('threatScope');
+  scope.replaceChildren(new Option('Tramo de la ruta','segment'),
+    ...[...upcoming].map(passage=>new Option(strategicPassages[passage],passage)));
+  if(upcoming.has(vessel.passage)) scope.value=vessel.passage;
+  confirmation.showModal();
+};
+byId('confirmThreat').onclick=()=>{
+  confirmation.close();
+  const vessel=routes[selected];
+  const alert=findDetour(vessel,byId('threatSeverity').value,byId('threatScope').value);
+  if(!alert) {
+    byId('scenarioNote').textContent='El buque ya está en la aproximación final al puerto.';
+    return;
+  }
+  vessel.alert=alert;
+  vessel.status=alert.alternative?'En desvío':'En espera';
+  if(alert.alternative) {
+    vessel.active=alert.alternative;
+    vessel.travelled=0;
+    selectVessel(selected);
+    return;
+  }
+  redraw();
+  updateUI();
+};
+byId('cancelThreat').onclick=()=>confirmation.close();
+byId('reset').onclick=()=>{
+  for(const vessel of routes) Object.assign(vessel,{
+    alert:null,status:'En tránsito',active:vessel.normal,travelled:0,elapsed:0
+  });
+  redraw();
+  updateUI();
+};
+
+function updateEta(vessel) {
+  measure(vessel.active);
+  const remaining=Math.max(0,vessel.active.length-vessel.travelled);
+  byId('etaProgress').style.width=(100*(1-remaining/Math.max(1,vessel.active.length))).toFixed(1)+'%';
+  byId('etaBig').textContent=vessel.status==='En espera'?'En espera':
+    vessel.status==='Arribado'?'Arribado':Math.ceil(remaining/vessel.speed)+' días';
+}
+let lastTime=performance.now();
+function tick(now) {
+  const days=Math.min(now-lastTime,1000)/60000*clockSpeed;
+  lastTime=now;
+  let changed=false;
+  for(const [index,vessel] of routes.entries()) {
+    if(vessel.status==='Arribado' || vessel.status==='En espera') continue;
+    measure(vessel.active);
+    const travelled=Math.min(vessel.active.length-vessel.travelled,days*vessel.speed);
+    vessel.elapsed+=travelled/vessel.speed;
+    vessel.travelled+=travelled;
+    if(vessel.travelled>=vessel.active.length) {
+      vessel.status='Arribado';
+      changed=true;
+    }
+    if(view==='mando') markers[index]?.setLatLng(mapPoint(position(vessel).point));
+  }
+  if(changed) updateUI();
+  else if(view==='mando') updateEta(routes[selected]);
+  requestAnimationFrame(tick);
+}
+
+const titles={
+  mando:['Control de Mando','Monitoreo simulado del abastecimiento alimentario marítimo en Oceanía','VISTA GENERAL'],
+  reportes:['Reportes','Registro de embarcaciones y trayectorias','RESUMEN'],
+  sobre:['Sobre Bula','Seguridad alimentaria y abastecimiento marítimo en Oceanía','ACERCA DEL PROYECTO']
+};
+function showView(next) {
+  view=next;
+  document.querySelector('main').classList.toggle('non-dashboard',view!=='mando');
+  for(const button of document.querySelectorAll('.nav')) {
+    const active=button.dataset.view===view;
+    button.classList.toggle('active',active);
+    if(active) button.setAttribute('aria-current','page');
+    else button.removeAttribute('aria-current');
+  }
+  [byId('title').textContent,byId('subtitle').textContent,byId('sectionLabel').textContent]=titles[view];
+  byId('reports').classList.toggle('hidden',view!=='reportes');
+  byId('about').classList.toggle('hidden',view!=='sobre');
+  if(view==='mando') map.invalidateSize();
+  updateUI();
+}
+for(const button of document.querySelectorAll('.nav')) button.onclick=()=>showView(button.dataset.view);
+document.querySelector('.brand').onclick=event=>{event.preventDefault();showView('mando')};
+byId('mapKey').onclick=()=>byId('legend').classList.toggle('hidden');
+byId('help').onclick=()=>byId('helpDialog').classList.remove('hidden');
+for(const button of document.querySelectorAll('#helpDialog .close,#helpDialog .close-action')) {
+  button.onclick=()=>byId('helpDialog').classList.add('hidden');
+}
+byId('print').onclick=()=>window.print();
+byId('speed').onchange=event=>{clockSpeed=Number(event.target.value)};
+
+function initRegistration() {
+  const form=byId('registerForm');
+  const country=byId('originCountry'),origin=byId('originSelect'),destination=byId('destinationSelect');
+  const error=byId('formError');
+  const codes=Object.keys(seaPorts).sort((a,b)=>portLabel(a).localeCompare(portLabel(b),'es'));
+  const countries=[...new Set(codes.map(code=>seaPorts[code][1]))]
+    .sort((a,b)=>countryNames.of(a).localeCompare(countryNames.of(b),'es'));
+  country.replaceChildren(...countries.map(code=>new Option(countryNames.of(code),code)));
+  destination.replaceChildren(...codes.filter(code=>destinationRegions.has(seaPorts[code][1]))
+    .map(code=>new Option(portLabel(code),code)));
+  function fillOrigins() {
+    origin.replaceChildren(...codes.filter(code=>seaPorts[code][1]===country.value)
+      .map(code=>new Option(portLabel(code),code)));
+  }
+  function resetFields() {
+    form.reset();
+    country.value='AU';
+    fillOrigins();
+    origin.value='AUBNE';
+    destination.value='FJSUV';
+    form.elements.departure.value=today();
+  }
+  let step=1;
+  let pending=null;
+  function setStep(number) {
+    step=number;
+    error.textContent='';
+    for(const panel of form.querySelectorAll('.step-fields')) panel.classList.toggle('hidden',Number(panel.dataset.step)!==step);
+    for(const indicator of form.querySelectorAll('[data-step-indicator]')) {
+      const position=Number(indicator.dataset.stepIndicator);
+      indicator.classList.toggle('current',position===step);
+      indicator.classList.toggle('completed',position<step);
+    }
+    byId('prevStep').classList.toggle('hidden',step===1);
+    byId('nextStep').classList.toggle('hidden',step===3);
+    byId('submitRegistration').classList.toggle('hidden',step!==3);
+  }
+  resetFields();
+  country.onchange=fillOrigins;
+  byId('openRegister').onclick=()=>{
+    showView('mando');
+    byId('registerDialog').scrollIntoView({behavior:'smooth',block:'center'});
+    form.querySelector('[data-step="'+step+'"] input, [data-step="'+step+'"] select')?.focus({preventScroll:true});
+  };
+  byId('nextStep').onclick=()=>{
+    for(const field of form.querySelectorAll('[data-step="'+step+'"] input,[data-step="'+step+'"] select')) {
+      if(!field.reportValidity()) return;
+    }
+    if(step===2) {
+      const data=Object.fromEntries(new FormData(form));
+      const entry={ship:data.ship.trim(),flag:data.flag.trim(),cargo:data.cargo,
+        tonnes:Number(data.tonnes),days:Number(data.days),departure:data.departure,from:data.origin,to:data.destination};
+      if(!entry.ship || !entry.flag) {
+        setStep(1);
+        error.textContent='Completa el nombre y la bandera del buque.';
+        return;
+      }
+      const vessel=prepareVessel(entry);
+      if(!vessel) {
+        error.textContent='No hay conexión marítima para esos puertos. Elige dos puertos distintos conectados a la red.';
+        return;
+      }
+      pending={entry,vessel};
+      byId('registrationSummary').textContent=entry.ship+' · '+vessel.origin+' → '+vessel.destination+
+        ' · '+fmt(Math.round(vessel.normal.km))+' km · '+fmt(entry.tonnes)+' t';
+    }
+    setStep(step+1);
+  };
+  byId('prevStep').onclick=()=>setStep(step-1);
+  form.onsubmit=event=>{
+    event.preventDefault();
+    if(step!==3 || !pending) return;
+    try {
+      const stored=JSON.parse(localStorage.getItem(storageKey)||'[]');
+      const entries=Array.isArray(stored)?stored:saved;
+      localStorage.setItem(storageKey,JSON.stringify([...entries,pending.entry]));
+    } catch {
+      error.textContent='No se pudo guardar el buque en este navegador.';
+      return;
+    }
+    routes.push(pending.vessel);
+    pending=null;
+    buildRouteList();
+    resetFields();
+    setStep(1);
+    showView('mando');
+    selectVessel(routes.length-1);
+    byId('map').scrollIntoView({behavior:'smooth',block:'nearest'});
+  };
+}
+
+initRegistration();
+buildRouteList();
+selectVessel(0,false);
+requestAnimationFrame(tick);
