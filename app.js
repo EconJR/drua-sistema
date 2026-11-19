@@ -61,12 +61,14 @@ const originRegions = [
   ['África','AO BF BI BJ BW CD CF CG CI CM CV DJ DZ EG EH ER ET GA GH GM GN GQ GW KE KM LR LS LY MA MG ML MR MU MW MZ NA NE NG RE RW SC SD SH SL SN SO SS ST SZ TD TG TN TZ UG YT ZA ZM ZW']
 ];
 const regionByCountry=new Map(originRegions.flatMap(([region,countries])=>countries.split(' ').map(code=>[code,region])));
-const explorer={mode:'origin',group:'Oceanía',state:'all'};
+const worldGroup='Mundo';
+const explorer={mode:'origin',group:worldGroup,state:'all'};
+const exploringWorld=()=>explorer.mode==='origin' && explorer.group===worldGroup;
 const groupKey=vessel=>explorer.mode==='origin' ? regionByCountry.get(seaPorts[vessel.from][1]) || 'Otras regiones' : vessel.to;
 const groupName=key=>explorer.mode==='origin' ? key : portLabel(key).split(',')[0];
 const stateRank={critical:0,ordinary:1,normal:2};
 function visibleRoutes() {
-  return routes.filter(vessel=>groupKey(vessel)===explorer.group &&
+  return routes.filter(vessel=>(exploringWorld() || groupKey(vessel)===explorer.group) &&
     (explorer.state==='all' || severityOf(vessel)===explorer.state));
 }
 
@@ -75,9 +77,9 @@ let view = 'mando';
 let clockSpeed = 1;
 const map = L.map('map',{
   zoomControl:false,zoomSnap:.25,minZoom:.5,maxZoom:6,
-  maxBounds:[[-85,-180],[85,540]]
+  maxBounds:[[-85,-360],[85,720]]
 }).setView([-18,155],2.5);
-function preventRepeatedWorld(mapInstance) {
+function preventRepeatedWorld(mapInstance,allowWorldOverview=()=>false) {
   function updateMinimumZoom() {
     const {x:width}=mapInstance.getSize();
     if (!width) return;
@@ -85,12 +87,12 @@ function preventRepeatedWorld(mapInstance) {
     const snap=mapInstance.options.zoomSnap;
     // Round up so the visible longitude span never exceeds one full world.
     const zoom=mapInstance.getScaleZoom(width/worldWidth,0);
-    mapInstance.setMinZoom(Math.max(0,Math.ceil(zoom/snap)*snap));
+    mapInstance.setMinZoom(allowWorldOverview()?0:Math.max(0,Math.ceil(zoom/snap)*snap));
   }
   mapInstance.on('resize',updateMinimumZoom);
   updateMinimumZoom();
+  return updateMinimumZoom;
 }
-preventRepeatedWorld(map);
 L.control.zoom({position:'bottomleft'}).addTo(map);
 L.control.scale({imperial:false,position:'bottomright'}).addTo(map);
 map.attributionControl.setPrefix('');
@@ -101,8 +103,26 @@ const land = L.geoJSON(null,{interactive:false,style:{
 }}).addTo(map);
 
 const regionalBounds = L.latLngBounds([[-48,108],[4,189]]);
-const globalBounds = L.latLngBounds([[-65,-178],[78,178]]);
-let mapMode = 'regional';
+const globalBounds = L.latLngBounds([[-80,-25],[80,335]]);
+let mapMode = 'global';
+const updateMainMinimumZoom=preventRepeatedWorld(map,()=>mapMode==='global');
+
+// On wide screens, fit the world by height and mask the extra horizontal copies.
+function clipWorldOverview() {
+  const pane=map.getPane('mapPane');
+  const {x:width,y:height}=map.getSize();
+  const worldWidth=map.getPixelWorldBounds().getSize().x;
+  if(mapMode!=='global' || width<=worldWidth) {
+    pane.style.clipPath='';
+    return;
+  }
+  const margin=(width-worldWidth)/2;
+  const top=map.containerPointToLayerPoint([margin,0]);
+  const bottom=map.containerPointToLayerPoint([width-margin,height]);
+  pane.style.clipPath='polygon('+top.x+'px '+top.y+'px,'+bottom.x+'px '+top.y+'px,'+
+    bottom.x+'px '+bottom.y+'px,'+top.x+'px '+bottom.y+'px)';
+}
+map.on('move resize zoomend',clipWorldOverview);
 const regionalLabels = [
   ['Australia',-24,134], ['Papúa Nueva Guinea',-5.5,145],
   ['Islas Salomón',-7,161], ['Nueva Zelanda',-43,174],
@@ -112,10 +132,13 @@ const regionalLabels = [
 
 function fitOverview(mode) {
   mapMode=mode;
+  updateMainMinimumZoom();
   updateMapControls();
   map.fitBounds(mode==='global' ? globalBounds : regionalBounds,{
-    padding:[map.getSize().x<500 && mode==='regional' ? 47 : 20,18],maxZoom:mode==='global' ? Math.max(2.5,map.getMinZoom()) : 4,animate:false
+    padding:[map.getSize().x<500 && mode==='regional' ? 47 : 20,18],maxZoom:mode==='global' ? 2.5 : 4,animate:false
   });
+  if(mode==='global') map.setMinZoom(map.getZoom());
+  clipWorldOverview();
 }
 
 function updateMapControls() {
@@ -238,10 +261,12 @@ function selectVessel(index,{showDetail=true}={}) {
   selected=index;
   const vessel=routes[index];
   if(showDetail) toggleVesselPanel(true);
-  explorer.group=groupKey(vessel);
+  if(!exploringWorld()) explorer.group=groupKey(vessel);
   if(explorer.state!=='all' && explorer.state!==severityOf(vessel)) explorer.state='all';
   map.invalidateSize({pan:false});
   mapMode='route';
+  updateMainMinimumZoom();
+  clipWorldOverview();
   updateMapControls();
   const original=unwrap(vessel.normal.path);
   const bounds=L.latLngBounds(original);
@@ -567,7 +592,9 @@ function buildRouteList() {
   }
   const keys=[...groups.keys()];
   if(explorer.mode==='origin') {
-    const order=[...originRegions.map(([name])=>name),'Otras regiones'];
+    groups.set(worldGroup,routes.length);
+    keys.unshift(worldGroup);
+    const order=[worldGroup,...originRegions.map(([name])=>name),'Otras regiones'];
     keys.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
   } else keys.sort((a,b)=>groupName(a).localeCompare(groupName(b),'es'));
   const focused=document.activeElement;
@@ -653,7 +680,9 @@ function changeExplorer(changes) {
     selected=null;
     toggleVesselPanel(false);
   }
-  if(selected===null) {
+  if(exploringWorld() && (changes.group===worldGroup || selected===null)) {
+    fitOverview('global');
+  } else if(selected===null) {
     const hasLongRoute=visibleRoutes().some(vessel=>vessel.normal.length>6000);
     fitOverview(hasLongRoute?'global':'regional');
   }
@@ -664,7 +693,7 @@ for(const button of document.querySelectorAll('[data-explorer-mode]')) {
   button.onclick=()=>{
     if(button.dataset.explorerMode===explorer.mode) return;
     explorer.mode=button.dataset.explorerMode;
-    const group=selected===null?(explorer.mode==='origin'?'Oceanía':'FJSUV'):groupKey(routes[selected]);
+    const group=explorer.mode==='origin'?worldGroup:selected===null?'FJSUV':groupKey(routes[selected]);
     for(const toggle of document.querySelectorAll('[data-explorer-mode]')){
       toggle.setAttribute('aria-pressed',toggle===button);
     }
@@ -943,7 +972,7 @@ function initRegistration() {
 initRegistration();
 updateUI();
 redraw();
-fitOverview('regional');
+fitOverview('global');
 let previousMapSize = map.getSize();
 new ResizeObserver(()=>{
   const container=map.getContainer();

@@ -462,3 +462,12 @@ main.non-dashboard .fleet-card-event p { font-size:11px; }
 #threatDialog select { width:100%; min-width:0; color-scheme:dark; }
 #threatSeverity:has(option[value="ordinary"]:checked) { border-color:#d5ab66; color:#ffd797; }
 #threatSeverity:has(option[value="critical"]:checked) { border-color:#ff8181; color:#ffada8; }
+
+@media(min-width:761px) {
+  .route-explorer .route-list {
+    max-height:525px;
+    overflow-y:auto;
+    padding:3px;
+    scrollbar-color:#527b90 #0a2531;
+  }
+}
