@@ -27,7 +27,7 @@
           <p id="routeGroupLabel">Región de origen</p>
           <div id="routeGroups" role="group" aria-labelledby="routeGroupLabel"></div>
         </div>
-        <label>Estado <select id="routeState"><option value="all">Todos los estados</option><option value="normal">Ruta normal</option><option value="ordinary">No crítica</option><option value="critical">Crítica</option></select></label>
+        <label>Estado <select id="routeState"><option value="all">Todos los estados</option><option value="normal">Ruta normal</option><option value="ordinary">Moderada</option><option value="critical">Crítica</option></select></label>
       </div>
     </div>
   </div>
@@ -44,9 +44,9 @@
         <p id="explorerCargo"></p><p class="explorer-arrival"><span id="explorerArrival"></span> <strong id="explorerDelay"></strong></p>
         <div class="explorer-actions"><button type="button" class="map-key" id="toggleVesselDetail" aria-controls="vesselPanel" aria-expanded="false">Ver detalle del buque</button><button type="button" class="map-key" id="explorerSimulate">Simular amenaza</button></div>
       </section>
+      </div>
       <aside class="side hidden" id="vesselPanel"><section class="detail card" aria-labelledby="shipName"><div class="card-heading"><div><span class="micro">BUQUE SELECCIONADO</span><h2>Detalle del buque</h2></div><button class="icon-button" id="closeVessel" type="button" aria-label="Cerrar detalle del buque">×</button></div><div class="ship-image"><div class="ship-image-caption">TRANSPORTE AGROESTRATÉGICO</div><img src="assets/cargo.jpg" alt="Buque portacontenedores en el mar"></div><div class="ship-head"><div><h3 id="shipName">MV Esperanza</h3><span class="ship-status"><i class="dot teal"></i> <span id="shipStatus">En ruta</span></span></div><span class="id-tag" id="shipId">DRU-01</span></div><div class="detail-list"><div><span>▣</span><div><small>CARGA PRIORITARIA</small><b id="shipCargo"></b></div></div><div><span>⌖</span><div><small>ORIGEN → DESTINO</small><b id="shipJourney"></b></div></div><div><span>▤</span><div><small>VOLUMEN SIMULADO</small><b id="shipVolume"></b></div></div><div><span>◷</span><div><small>TIEMPO BASE ESTIMADO</small><b id="shipEta"></b></div></div></div><div class="eta-panel"><span>▣ &nbsp; ETA <small>(simulada)</small></span><strong id="etaBig">—</strong><div class="eta-track"><i id="etaProgress"></i></div><div class="eta-endpoints"><span id="etaOrigin"></span><span>En tránsito</span><span id="etaDestination"></span></div></div><button class="primary" id="simulate">⚠ &nbsp; Simular amenaza <span>→</span></button><p class="mini-note" id="scenarioNote">Selecciona una ruta y simula una amenaza en su paso estratégico.</p></section><section class="risk card" id="riskCard"><div class="risk-head"><div><span class="micro">INTELIGENCIA DE RUTA</span><h2>Riesgo de la ruta</h2></div><span class="risk-badge" id="riskBadge">● &nbsp; Sin alerta</span></div><div class="risk-graph"><svg viewBox="0 0 400 55" preserveAspectRatio="none"><defs><linearGradient id="graph" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#dfa34b" stop-opacity=".3"/><stop offset="1" stop-color="#dfa34b" stop-opacity="0"/></linearGradient></defs><path d="M0 42 C50 40 80 38 110 30 S155 31 190 14 S230 22 260 25 S320 34 400 39 L400 55 L0 55Z" fill="url(#graph)"/><path d="M0 42 C50 40 80 38 110 30 S155 31 190 14 S230 22 260 25 S320 34 400 39" fill="none" stroke="#d8a04f" stroke-width="1.8"/><circle cx="190" cy="14" r="3" fill="#f3b65d"/></svg></div><p id="riskText">Activa una amenaza para explorar un escenario de interrupción ficticio.</p></section></aside>
     </div>
-  </div>
 </section><div class="disclaimer"><span>ⓘ</span><p><b>Prototipo de demostración.</b> Buques, cargas, alertas, tiempos y desvíos son ficticios. Las rutas son esquemáticas y no deben usarse para navegación real ni representan una evaluación oficial de riesgo. Los logos son referencias visuales y no acreditan una colaboración o respaldo institucional.</p></div><section class="reports about hidden" id="about" aria-labelledby="aboutMission">
   <article class="mission-card">
     <div><span class="micro">SEGURIDAD ALIMENTARIA MARÍTIMA</span><h2 id="aboutMission">Misión de DRUA</h2>
@@ -109,4 +109,28 @@
     <form method="dialog"><button class="icon-button" type="submit" aria-label="Cerrar detalle" autofocus>×</button></form>
   </header>
   <div id="fleetReportDialogSlot"></div>
-</dialog><script src="vendor/leaflet.js"></script><dialog id="threatDialog" class="dialog" aria-labelledby="threatTitle"><h2 id="threatTitle">Simular amenaza</h2><label>Prioridad<select id="threatSeverity"><option value="ordinary">No crítica</option><option value="critical">Crítica</option></select></label><label>Punto afectado<select id="threatScope"></select></label><button type="button" class="primary" id="confirmThreat">Confirmar amenaza</button><button type="button" class="secondary" id="cancelThreat">Cancelar</button></dialog><script src="vendor/maritime-data.js"></script><script src="maritime-routing.js"></script><script src="app.js"></script></body></html>
+</dialog><script src="vendor/leaflet.js"></script><dialog id="threatDialog" class="dialog" aria-labelledby="threatTitle">
+  <h2 id="threatTitle">Simular amenaza</h2>
+  <form id="threatForm">
+    <label>Nivel de la amenaza
+      <select id="threatSeverity">
+        <option value="ordinary">🟡 Moderada</option>
+        <option value="critical">🔴 Crítica</option>
+      </select>
+    </label>
+    <label>Motivo de la amenaza
+      <select id="threatReason" required>
+        <option value="">Selecciona un motivo</option>
+        <option value="weather">Mal tiempo, ciclón o mar agitado</option>
+        <option value="congestion">Congestión portuaria o del canal</option>
+        <option value="closure">Cierre o restricción de un puerto o paso marítimo</option>
+        <option value="depth">Bajo nivel de agua o restricción de calado</option>
+        <option value="incident">Accidente marítimo o peligro para la navegación</option>
+        <option value="security">Alerta de seguridad marítima</option>
+      </select>
+    </label>
+    <label>Punto afectado <select id="threatScope"></select></label>
+    <button type="submit" class="primary" id="confirmThreat">Confirmar amenaza y calcular desvío</button>
+    <button type="button" class="secondary" id="cancelThreat">Cancelar</button>
+  </form>
+</dialog><script src="vendor/maritime-data.js"></script><script src="maritime-routing.js"></script><script src="app.js"></script></body></html>

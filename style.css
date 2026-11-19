@@ -435,3 +435,30 @@ main.non-dashboard .fleet-card-event p { font-size:11px; }
   .explorer-filter-fields { display:grid; width:100%; gap:10px; }
   #routeState { width:100%; }
 }
+
+/* Details open next to the map when a vessel is selected. */
+.explorer-grid > #vesselPanel { grid-column:2; margin:0; }
+@media(min-width:1050px) {
+  .route-explorer .explorer-grid.has-vessel-detail {
+    grid-template-columns:minmax(165px,1fr) minmax(320px,2.15fr) minmax(210px,.95fr);
+  }
+  .explorer-grid > #vesselPanel { grid-column:3; }
+}
+@media(max-width:760px) {
+  .explorer-grid > #vesselPanel { grid-column:1; }
+}
+.ship-marker .marker-inner.is-diverted,
+.ship-marker .marker-inner.is-waiting.ordinary {
+  background:#775620; border-color:#ffc66c;
+  box-shadow:0 0 0 4px #ffc66c30,0 0 16px #ffc66c70;
+}
+.ship-marker .marker-inner.is-diverted img,
+.ship-marker .marker-inner.is-waiting.ordinary img { filter:hue-rotate(218deg) saturate(1.6); }
+.ship-marker .marker-inner.is-waiting.critical {
+  background:#713636; border-color:#ff8181; box-shadow:0 0 0 4px #ff818125;
+}
+.ship-marker .marker-inner.is-waiting.critical img { filter:hue-rotate(192deg) saturate(1.7); }
+#threatDialog { width:min(455px,calc(100% - 28px)); }
+#threatDialog select { width:100%; min-width:0; color-scheme:dark; }
+#threatSeverity:has(option[value="ordinary"]:checked) { border-color:#d5ab66; color:#ffd797; }
+#threatSeverity:has(option[value="critical"]:checked) { border-color:#ff8181; color:#ffada8; }

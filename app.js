@@ -210,7 +210,7 @@ function redraw() {
       drawLine(vessel.alert.alternative.path,{color:'#ffc66c',dashArray:'7 6',weight:current?4:2,opacity:current?1:.45,interactive:false});
     }
     if (current && vessel.alert) {
-      L.circleMarker(mapPoint(vessel.alert.point),{color:'#ffc66c',radius:8,fillOpacity:.45})
+      L.circleMarker(mapPoint(vessel.alert.point),{color:vessel.alert.severity==='critical'?'#ff8181':'#ffc66c',radius:8,fillOpacity:.45})
         .addTo(layers).bindTooltip(vessel.alert.label);
     }
     if (current) {
@@ -220,9 +220,11 @@ function redraw() {
           .addTo(layers).bindTooltip(name,{permanent:true,direction:anchor,className:'explorer-port-label'});
       }
     }
+    const markerState=vessel.status==='En desvío'?' is-diverted':
+      vessel.status==='En espera'?' is-waiting '+vessel.alert.severity:'';
     const marker=L.marker(mapPoint(position(vessel).point),{
       title:vessel.ship,alt:vessel.ship,zIndexOffset:current?1000:0,
-      icon:L.divIcon({className:'ship-marker',html:'<div class="marker-inner'+(current?'':' other')+'">'+vesselIcon+'</div>',
+      icon:L.divIcon({className:'ship-marker',html:'<div class="marker-inner'+(current?'':' other')+markerState+'">'+vesselIcon+'</div>',
         iconSize:current?[32,32]:[24,24],iconAnchor:current?[16,16]:[12,12]})
     }).addTo(layers);
     marker.bindTooltip(()=>vesselPreview(vessel),{className:'vessel-hover',direction:'auto',offset:[10,-4]})
@@ -232,24 +234,23 @@ function redraw() {
 }
 map.on('moveend',redraw);
 
-function selectVessel(index,focus=true) {
+function selectVessel(index,{showDetail=true}={}) {
   selected=index;
   const vessel=routes[index];
+  if(showDetail) toggleVesselPanel(true);
   explorer.group=groupKey(vessel);
   if(explorer.state!=='all' && explorer.state!==severityOf(vessel)) explorer.state='all';
   map.invalidateSize({pan:false});
-  if(focus) {
-    mapMode='route';
-    updateMapControls();
-    const original=unwrap(vessel.normal.path);
-    const bounds=L.latLngBounds(original);
-    if(vessel.alert?.alternative) {
-      const alternative=unwrap(vessel.alert.alternative.path);
-      const shift=original.at(-1)[1]-alternative.at(-1)[1];
-      bounds.extend(L.latLngBounds(alternative.map(([lat,lon])=>[lat,lon+shift])));
-    }
-    map.fitBounds(bounds,{padding:[26,26],maxZoom:4,animate:false});
+  mapMode='route';
+  updateMapControls();
+  const original=unwrap(vessel.normal.path);
+  const bounds=L.latLngBounds(original);
+  if(vessel.alert?.alternative) {
+    const alternative=unwrap(vessel.alert.alternative.path);
+    const shift=original.at(-1)[1]-alternative.at(-1)[1];
+    bounds.extend(L.latLngBounds(alternative.map(([lat,lon])=>[lat,lon+shift])));
   }
+  map.fitBounds(bounds,{padding:[26,26],maxZoom:4,animate:false});
   redraw();
   updateUI();
 }
@@ -278,7 +279,7 @@ function severityBadge(vessel) {
   const badge=document.createElement('span');
   const severity=vessel.alert?.severity || 'normal';
   badge.className='vessel-state '+severity;
-  badge.textContent={normal:'Ruta normal',ordinary:'No crítica',critical:'Crítica'}[severity];
+  badge.textContent={normal:'Ruta normal',ordinary:'Moderada',critical:'Crítica'}[severity];
   return badge;
 }
 let fleetFilter='all';
@@ -323,7 +324,7 @@ function buildFleetCard(vessel) {
     const state=document.createElement('strong');
     state.textContent=vessel.status;
     const note=document.createElement('p');
-    note.textContent=vessel.alert.label+' · '+delayText(vessel);
+    note.textContent=vessel.alert.reason+' · '+delayText(vessel);
     event.append(state,note);
   } else {
     const meter=document.createElement('progress');
@@ -368,12 +369,13 @@ function vesselPreview(vessel) {
   preview.append(title,severityBadge(vessel));
   const lines=vessel.alert ? [
     ['Estado',vessel.status],
+    ['Motivo',vessel.alert.reason],
     ['Hora simulada',dateTime.format(simulatedDate(vessel,vessel.alert.eventDays))+' UTC'],
     ['Inicio del desvío',eventCoordinates(vessel.alert)],
     ['Vía alternativa',vessel.alert.alternative?describeAlternative(vessel.alert.alternative,vessel.destination):'Sin paso habilitado'],
     ['Nueva llegada',arrival(vessel)],['Cambio de tránsito',delayText(vessel)]
   ] : [['Ruta',vessel.origin+' → '+vessel.destination],['Llegada simulada',arrival(vessel)]];
-  if(vessel.alert && !vessel.alert.alternative) lines[2][0]='Posición durante la alerta';
+  if(vessel.alert && !vessel.alert.alternative) lines[3][0]='Posición durante la alerta';
   for(const [label,value] of lines){
     const line=document.createElement('div');
     const key=document.createElement('b');
@@ -490,6 +492,7 @@ function openVesselReport(vessel,{refresh=false}={}) {
     facts.push(['Hora simulada del evento',dateTime.format(simulatedDate(vessel,alert.eventDays))+' UTC'],
       [alert.alternative?'Posición al iniciar el desvío':'Posición durante la alerta',eventCoordinates(alert)],
       ['Punto afectado',alert.label],
+      ['Motivo de la amenaza',alert.reason],
       ['Vía alternativa',alert.alternative ? describeAlternative(alert.alternative,vessel.destination):'Sin paso habilitado'],
       ['Llegada antes del evento',dateTime.format(simulatedDate(vessel,Number(vessel.days)))+' UTC'],
       ['Nueva llegada estimada',arrival(vessel)]);
@@ -551,7 +554,7 @@ function updateUI() {
     etaOrigin:seaPorts[vessel.from][0],etaDestination:seaPorts[vessel.to][0],
     mapTag:'/ '+seaPorts[vessel.to][0],
     mapMessage:vessel.origin+' → '+vessel.destination+' · '+fmt(Math.round(vessel.normal.km))+' km'+(passage?' · '+passage:''),
-    scenarioNote:vessel.alert?.message || 'Simula una amenaza en el recorrido pendiente.'};
+    scenarioNote:vessel.alert ? vessel.alert.reason+' · '+vessel.alert.message : 'Simula una amenaza en el recorrido pendiente.'};
   for (const [id,value] of Object.entries(fields)) byId(id).textContent=value;
   byId('simulate').disabled=Boolean(vessel.alert) || vessel.status==='Arribado';
   updateEta(vessel);
@@ -615,7 +618,7 @@ function explorerBadge(vessel) {
   const icon=document.createElement('i');
   icon.setAttribute('aria-hidden','true');
   icon.textContent={normal:'●',ordinary:'▲',critical:'!'}[severity];
-  const label={normal:vessel.status==='Arribado'?'Arribado':'Ruta normal',ordinary:vessel.status+' · No crítica',critical:vessel.status+' · Crítica'};
+  const label={normal:vessel.status==='Arribado'?'Arribado':'Ruta normal',ordinary:vessel.status+' · Moderada',critical:vessel.status+' · Crítica'};
   badge.append(icon,label[severity]);
   return badge;
 }
@@ -639,6 +642,7 @@ function updateExplorerSummary(vessel) {
 
 function toggleVesselPanel(show) {
   byId('vesselPanel').classList.toggle('hidden',!show);
+  document.querySelector('.explorer-grid').classList.toggle('has-vessel-detail',show);
   byId('toggleVesselDetail').setAttribute('aria-expanded',show);
   byId('toggleVesselDetail').textContent=show?'Ocultar detalle del buque':'Ver detalle del buque';
 }
@@ -669,7 +673,7 @@ for(const button of document.querySelectorAll('[data-explorer-mode]')) {
 }
 byId('routeState').onchange=event=>changeExplorer({state:event.target.value});
 
-function findDetour(vessel,severity,targetPassage) {
+function findDetour(vessel,severity,targetPassage,reason) {
   const plan=vessel.normal;
   const {point,edge:current}=position(vessel);
   const ahead=plan.edges.map((id,index)=>({id,index})).filter(({id,index})=>id>=0 && index>=current);
@@ -704,13 +708,15 @@ function findDetour(vessel,severity,targetPassage) {
     ? label+' · Desvío automático de '+fmt(Math.round(alternative.km))+' km desde la posición actual.'
     : label+' · La red simulada no ofrece un paso habilitado. El buque queda en espera.';
   if(alternative) measure(alternative);
-  return {point:threatPoint,label,message,alternative,severity,eventPosition:point,
+  return {point:threatPoint,label,message,alternative,severity,reason,eventPosition:point,
     eventDays:vessel.elapsed,days:vessel.elapsed+(alternative?.length ?? 0)/vessel.speed};
 }
 
 const confirmation = byId('threatDialog');
+const threatForm=byId('threatForm');
 byId('simulate').onclick=()=>{
   const vessel=routes[selected];
+  threatForm.reset();
   const upcoming=new Set(vessel.normal.edges.slice(position(vessel).edge)
     .map(id=>seaEdges[id]?.[3]).filter(passage=>strategicPassages[passage]));
   const scope=byId('threatScope');
@@ -719,10 +725,12 @@ byId('simulate').onclick=()=>{
   if(upcoming.has(vessel.passage)) scope.value=vessel.passage;
   confirmation.showModal();
 };
-byId('confirmThreat').onclick=()=>{
+threatForm.onsubmit=event=>{
+  event.preventDefault();
+  const reason=byId('threatReason').selectedOptions[0].textContent;
   confirmation.close();
   const vessel=routes[selected];
-  const alert=findDetour(vessel,byId('threatSeverity').value,byId('threatScope').value);
+  const alert=findDetour(vessel,byId('threatSeverity').value,byId('threatScope').value,reason);
   if(!alert) {
     byId('scenarioNote').textContent='El buque ya está en la aproximación final al puerto.';
     return;
@@ -732,11 +740,8 @@ byId('confirmThreat').onclick=()=>{
   if(alert.alternative) {
     vessel.active=alert.alternative;
     vessel.travelled=0;
-    selectVessel(selected);
-    return;
   }
-  redraw();
-  updateUI();
+  selectVessel(selected);
 };
 byId('cancelThreat').onclick=()=>confirmation.close();
 byId('reset').onclick=()=>{
@@ -947,7 +952,7 @@ new ResizeObserver(()=>{
   const size=map.getSize();
   if (size.equals(previousMapSize)) return;
   previousMapSize=size;
-  if (mapMode==='route' && selected!==null) selectVessel(selected);
+  if (mapMode==='route' && selected!==null) selectVessel(selected,{showDetail:false});
   else fitOverview(mapMode);
 }).observe(map.getContainer());
 requestAnimationFrame(tick);
