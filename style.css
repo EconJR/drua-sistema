@@ -134,3 +134,104 @@ main[data-view="mando"] .stats, main[data-view="mando"] .map-panel, main[data-vi
   .vessel-state { color:black !important; background:white !important; }
   #vesselReport,#registerDialog,#threatDialog { display:none !important; }
 }
+
+/* Fleet reports */
+.fleet-brand { display:none; }
+.report-view .masthead { display:none; }
+.report-view .navigation { height:auto; min-height:66px; }
+.report-view .fleet-brand { display:flex; align-items:center; gap:9px; flex-shrink:0; color:var(--text); }
+.fleet-brand strong { font:700 34px 'Playfair Display',Georgia,serif; }
+.fleet-brand .brand-icon { font-size:34px; }
+.fleet-brand > span:last-child { border-left:1px solid #6c939f; margin-inline:6px; padding-left:12px; font-size:11px; line-height:1.4; }
+.report-view .nav.active { background:#165267; border-radius:8px; }
+main[data-view="reportes"] { padding:0 0 26px; }
+main[data-view="reportes"] .heading { display:none; }
+main.non-dashboard .fleet-page { padding:0; margin:0; border:0; background:#051f2b; }
+.fleet-hero { min-height:174px; padding:22px 2.6% 24px; background:linear-gradient(90deg,#031926ed 0%,#0b304c4d 58%,#03192616),linear-gradient(0deg,#051f2b,transparent 58%),url('assets/fleet-pacific.jpg') center 53%/cover; }
+main.non-dashboard .fleet-hero h2 { font-size:clamp(30px,3.1vw,50px); margin:0; }
+main.non-dashboard .fleet-hero p { color:#d3e9f2; margin:4px 0 14px; font-size:clamp(13px,1.6vw,22px); }
+.fleet-hero > span { display:inline-block; padding:7px 12px; background:#90e8e1; color:#062633; border-radius:7px; font-weight:700; }
+.fleet-layout { display:grid; grid-template-columns:minmax(0,3fr) minmax(285px,1fr); gap:16px; align-items:start; padding:0 1.8%; }
+.fleet-results { min-width:0; }
+.fleet-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.fleet-metric { display:flex; align-items:center; gap:13px; min-height:77px; padding:10px 12px; background:#0a3041; border:1px solid #3c657a; border-left:4px solid #55bee0; border-radius:11px; }
+.fleet-metric.normal { border-left-color:#79e8a0; }
+.fleet-metric.ordinary { border-left-color:#ffd477; }
+.fleet-metric.critical { border-left-color:#ff8181; }
+.fleet-metric img { width:30px; }
+.fleet-metric i { font:700 22px/1 'DM Sans',Arial,sans-serif; font-style:normal; border:2px solid currentColor; color:#79e8a0; border-radius:50%; width:28px; height:28px; flex:none; display:grid; place-items:center; }
+.fleet-metric.ordinary i { color:#ffd477; }
+.fleet-metric.critical i { color:#ff8181; }
+.fleet-metric strong { display:block; font:700 clamp(21px,2vw,32px)/1 'DM Sans',Arial,sans-serif; }
+.fleet-metric span { display:block; margin-top:4px; line-height:1.25; }
+.fleet-filters { display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin-top:21px; }
+.fleet-filters > input { flex:1; min-width:130px; }
+.fleet-filters label { display:flex; align-items:center; gap:6px; max-width:100%; }
+.fleet-filters select { max-width:180px; }
+.fleet-filters input,.fleet-filters select,.fleet-filter-group button { min-height:35px; padding:5px 9px; color:#eaf9ff; background:#103041; border:1px solid #7393a4; border-radius:6px; }
+.fleet-filter-group { display:flex; flex-wrap:wrap; gap:5px; }
+.fleet-filter-group button[aria-pressed=true] { background:#8ae3df; border-color:#8ae3df; color:#05222e; font-weight:700; }
+.fleet-filter-group button[data-fleet-filter=ordinary]:not([aria-pressed=true]) { color:#ffda80; }
+.fleet-filter-group button[data-fleet-filter=critical]:not([aria-pressed=true]) { color:#ffa3a3; }
+main.non-dashboard .fleet-count { min-height:16px; margin:8px 0 5px; font-size:10px; }
+.fleet-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.fleet-card { display:flex; flex-direction:column; min-width:0; border:1px solid #285166; border-radius:12px; background:linear-gradient(145deg,#0c3344,#061e2a); overflow:hidden; transition:border-color .18s,box-shadow .18s; }
+.fleet-card.is-previewed { border-color:#98fff2; box-shadow:0 0 0 1px #98fff2; }
+.fleet-card-photo { aspect-ratio:4 / 1; overflow:hidden; background:#25576d; }
+.fleet-card-photo img { display:block; width:100%; height:100%; object-fit:cover; object-position:center 58%; }
+.fleet-card-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; padding:8px 10px; border-bottom:1px solid #305668; }
+.fleet-card-heading h3 { font:700 clamp(14px,1.4vw,19px)/1.15 'DM Sans',Arial,sans-serif; overflow-wrap:anywhere; }
+.fleet-card-data { display:flex; flex-direction:column; flex:1; padding:0 10px 10px; }
+main.non-dashboard .fleet-card-data > p { padding:7px 0; margin:0; border-bottom:1px solid #305668; color:#e4f3f7; font-size:11px; line-height:1.4; overflow-wrap:anywhere; }
+.fleet-card-event { flex:1; min-height:53px; margin:8px 0; border-radius:7px; display:flex; flex-direction:column; justify-content:center; gap:3px; }
+.fleet-card-event progress { width:100%; height:8px; accent-color:#74e89e; }
+.fleet-card-event span { color:#c1d5de; font-size:10px; }
+.fleet-card.ordinary .fleet-card-event,.fleet-card.critical .fleet-card-event { padding:6px 8px; border:1px solid #876838; background:#3a301e; color:#ffdb7d; }
+.fleet-card.critical .fleet-card-event { color:#ffa3a3; background:#422a35; border-color:#945562; }
+main.non-dashboard .fleet-card-event p { margin:0; font-size:10px; color:#f3e9e4; }
+.fleet-open { min-height:34px; padding:6px 8px; border:1px solid #48889a; border-radius:7px; color:#f1fbff; background:#155168; font-weight:700; }
+.fleet-open:hover,.fleet-open:focus-visible { background:#21687b; }
+.fleet-detail { position:sticky; top:10px; max-height:calc(100dvh - 20px); overflow:auto; overscroll-behavior:contain; border:1px solid #466e82; border-radius:12px; background:#06212f; scrollbar-color:#537a8b #072532; }
+.fleet-detail-empty { padding:12px; }
+.fleet-detail .report-dialog-head { padding:14px; }
+.fleet-detail .report-dialog-body { padding:0 14px 11px; overflow:visible; }
+.fleet-detail .report-facts { gap:6px; }
+.fleet-detail .report-facts div { padding:7px; }
+.fleet-detail #reportMap { height:155px; }
+.fleet-map-link { width:calc(100% - 28px); margin:0 14px 14px; text-align:center; color:#092631; background:#92e5dd; }
+.fleet-results > #print { margin-top:14px; }
+.fleet-print { display:none; }
+.vessel-hover.leaflet-tooltip { padding:9px 11px; max-width:min(285px,64vw); white-space:normal; line-height:1.5; font-family:'DM Sans',Arial,sans-serif; color:#ebfafb; background:#06212f; border:1px solid #6ab6c4; border-radius:8px; }
+.vessel-hover strong { display:inline-block; margin-right:6px; }
+.vessel-hover .vessel-state { margin-block:0 4px; }
+@media(max-width:1200px) {
+  .fleet-cards { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .fleet-brand > span:last-child { display:none; }
+}
+@media(max-width:999px) {
+  .fleet-layout { display:flex; flex-direction:column; }
+  .fleet-results,.fleet-detail { width:100%; }
+  .fleet-detail { position:static; max-height:none; }
+  .fleet-detail:has(#fleetDetailContent[hidden]) { display:none; }
+}
+@media(max-width:590px) {
+  .report-view .navigation { flex-wrap:wrap; min-height:75px; }
+  .report-view .navigation nav { flex:1 0 100%; }
+  .fleet-brand strong,.fleet-brand .brand-icon { font-size:24px; }
+  .fleet-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+  .fleet-metric { min-height:64px; }
+  .fleet-cards { grid-template-columns:1fr; }
+  .fleet-filters > input { flex-basis:100%; }
+}
+@media print {
+  #reports .fleet-layout,#reports .fleet-hero span { display:none; }
+  #reports .fleet-print { display:block; }
+  #reports .fleet-hero { min-height:0; padding:0; background:none; }
+  #reports .fleet-hero p { color:black; }
+}
+.fleet-card { cursor:pointer; }
+main.non-dashboard .fleet-card-data > p { font-size:12px; }
+main.non-dashboard .fleet-card-event p { font-size:11px; }
+.fleet-card-photo { background-image:url('assets/fleet-vessels.jpg'); background-size:100% 300%; background-position:0 0; }
+.fleet-card[data-photo="1"] .fleet-card-photo { background-position:0 50%; }
+.fleet-card[data-photo="2"] .fleet-card-photo { background-position:0 100%; }
