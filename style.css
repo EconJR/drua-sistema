@@ -335,3 +335,54 @@ main.non-dashboard .fleet-card-event p { font-size:11px; }
 @media(max-width:360px) {
   .navigation .nav { padding-inline:5px; font-size:10px; }
 }
+
+/* Route explorer */
+.route-explorer { margin-top:16px; padding:clamp(14px,1.85vw,28px); border:1px solid #285265; border-radius:12px; background:#081f2a; }
+.explorer-heading,.explorer-filters,.explorer-list-heading { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; }
+.explorer-heading h2 { font-size:clamp(30px,3.1vw,47px); }
+.explorer-heading p { margin:4px 0 0; color:var(--muted); font-size:clamp(13px,1.25vw,18px); }
+.explorer-mode { display:flex; gap:3px; flex:none; padding:4px; border-radius:10px; background:#0d2b37; }
+.explorer-mode button,#routeGroups button,#routeState {
+  border:1px solid #305868; border-radius:7px; padding:8px 11px;
+  color:#e7f5fa; background:#0e2a36; font:600 12px/1.3 'DM Sans',Arial,sans-serif;
+}
+.explorer-mode button { background:transparent; border-color:transparent; }
+.explorer-mode button[aria-pressed=true],#routeGroups button[aria-pressed=true] { border-color:#53e2d0; color:#84f3e4; background:#123743; }
+.explorer-filters { margin:20px 0 17px; align-items:flex-end; }
+.explorer-filters p,.explorer-filters label { margin:0 0 6px; color:var(--muted); }
+.explorer-filters label { display:grid; gap:5px; margin:0; flex:none; }
+#routeState { min-width:150px; color-scheme:dark; }
+#routeGroups { display:flex; flex-wrap:wrap; gap:6px; }
+#routeGroups span { margin-left:3px; font-weight:500; opacity:.8; }
+.route-explorer .explorer-grid { grid-template-columns:minmax(200px,1fr) minmax(0,2.18fr); align-items:start; gap:clamp(12px,1.45vw,22px); }
+.explorer-list,.explorer-map-column { min-width:0; }
+.explorer-list-heading { align-items:center; margin:0 0 10px; }
+.explorer-list-heading h3,.explorer-summary h3 { font:700 clamp(14px,1.4vw,19px)/1.25 'DM Sans',Arial,sans-serif; }
+#routeCount { color:var(--muted); white-space:nowrap; }
+.route-explorer .route-list { grid-template-columns:1fr; }
+.route-explorer .route-item { border-color:#2a5364; border-radius:8px; background:#0d2834; padding:12px; overflow-wrap:anywhere; }
+.route-explorer .route-item.active { border-color:#58e6d6; background:#123642; }
+.route-explorer .route-item strong { font-size:clamp(14px,1.3vw,19px); line-height:1.2; margin:0 0 5px; }
+.route-explorer .route-item > span { font-size:12px; margin-top:3px; }
+.explorer-status { display:inline-flex; gap:5px; align-items:center; margin-top:5px; line-height:1.3; }
+.route-explorer .explorer-status.normal { color:#8de8b3; }
+.route-explorer .explorer-status.ordinary { color:#ffc879; }
+.route-explorer .explorer-status.critical { color:#ffa4a4; }
+.explorer-status i { font-style:normal; font-weight:700; }
+#routeEmpty { padding:12px; border:1px dashed #376273; border-radius:7px; color:var(--muted); line-height:1.5; }
+.route-explorer .map-wrap { min-height:clamp(300px,38vw,480px); }
+.route-explorer .map-top { min-width:0; }
+.route-explorer .map-top h2 { font-size:clamp(13px,1.2vw,17px); }
+.explorer-summary { margin-top:11px; padding:12px; border:1px solid #2b5264; border-radius:9px; background:#0d2935; }
+.explorer-summary-heading { display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; }
+.explorer-summary p { margin:6px 0; color:var(--muted); line-height:1.5; }
+#explorerDelay { color:#ffd088; }
+.explorer-actions { display:flex; gap:7px; flex-wrap:wrap; margin-top:9px; }
+.explorer-actions button:disabled { opacity:.55; cursor:default; }
+.explorer-map-column > .side { margin-top:11px; }
+@media(max-width:760px) {
+  .route-explorer .explorer-grid { grid-template-columns:minmax(0,1fr); }
+  .explorer-heading,.explorer-filters { flex-wrap:wrap; }
+  .route-explorer .map-wrap { min-height:310px; }
+}
+.explorer-port-label.leaflet-tooltip { background:#071f2b; color:#dff7f9; border-color:#32616e; padding:3px 6px; }

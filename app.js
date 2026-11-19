@@ -52,6 +52,24 @@ for (const entry of saved) {
   const vessel = prepareVessel(entry);
   if (vessel) routes.push(vessel);
 }
+// ISO country codes from the bundled Natural Earth map, with additional port territories.
+const originRegions = [
+  ['Oceanía','AU FJ NC NZ PG SB VU AS CK FM GU KI MH MP NR NU PF PN PW TK TO TV WF WS UM'],
+  ['Asia','AE AF AM AZ BD BN BT CN CY GE HK ID IL IN IQ IR JO JP KG KH KP KR KW KZ LA LB LK MM MN MO MY NP OM PH PK PS QA SA SG SY TH TJ TL TM TR TW UZ VN YE'],
+  ['América','AG AI AR AW BB BL BM BO BR BS BZ CA CL CO CR CU CW DM DO EC FK GD GF GL GP GT GY HN HT JM KN KY LC MF MQ MS MX NI PA PE PR PY SR SV SX TC TT US UY VC VE VG VI'],
+  ['Europa','AD AL AT AX BA BE BG BY CH CZ DE DK EE ES FI FO FR GB GG GI GR HR HU IE IM IS IT JE LI LT LU LV MC MD ME MK MT NL NO PL PT RO RS RU SE SI SJ SK SM UA VA XK'],
+  ['África','AO BF BI BJ BW CD CF CG CI CM CV DJ DZ EG EH ER ET GA GH GM GN GQ GW KE KM LR LS LY MA MG ML MR MU MW MZ NA NE NG RE RW SC SD SH SL SN SO SS ST SZ TD TG TN TZ UG YT ZA ZM ZW']
+];
+const regionByCountry=new Map(originRegions.flatMap(([region,countries])=>countries.split(' ').map(code=>[code,region])));
+const explorer={mode:'origin',group:'Oceanía',state:'all'};
+const groupKey=vessel=>explorer.mode==='origin' ? regionByCountry.get(seaPorts[vessel.from][1]) || 'Otras regiones' : vessel.to;
+const groupName=key=>explorer.mode==='origin' ? key : portLabel(key).split(',')[0];
+const stateRank={critical:0,ordinary:1,normal:2};
+function visibleRoutes() {
+  return routes.filter(vessel=>groupKey(vessel)===explorer.group &&
+    (explorer.state==='all' || severityOf(vessel)===explorer.state));
+}
+
 let selected = null;
 let view = 'mando';
 let clockSpeed = 1;
@@ -161,27 +179,31 @@ function redraw() {
   }
   layers.clearLayers();
   markers.length=0;
-  routes.forEach((vessel,index)=>{
-    if (index===selected) return;
+  const visible=visibleRoutes();
+  for(const vessel of visible) {
+    const index=routes.indexOf(vessel);
+    if (index===selected) continue;
     drawLine(vessel.normal.path,{color:'#83aec0',weight:1.5,opacity:.56},()=>revealVessel(index));
-  });
+  }
   if(selected!==null) {
     drawLine(routes[selected].normal.path,{color:'#04252c',weight:6,opacity:.76,interactive:false});
     drawLine(routes[selected].normal.path,{color:'#54e6d1',weight:3,opacity:1,interactive:false});
   }
-  routes.forEach((vessel,index)=>{
+  for(const vessel of visible) {
+    const index=routes.indexOf(vessel);
     const current = index===selected;
     if (vessel.alert?.alternative) {
-      drawLine(vessel.alert.alternative.path,{color:'#ffc66c',dashArray:'7 6',weight:current?4:2,interactive:false});
+      drawLine(vessel.alert.alternative.path,{color:'#ffc66c',dashArray:'7 6',weight:current?4:2,opacity:current?1:.45,interactive:false});
     }
     if (current && vessel.alert) {
       L.circleMarker(mapPoint(vessel.alert.point),{color:'#ffc66c',radius:8,fillOpacity:.45})
         .addTo(layers).bindTooltip(vessel.alert.label);
     }
     if (current) {
-      for (const [code,label] of [[vessel.from,vessel.origin],[vessel.to,vessel.destination]]) {
+      for (const [code,anchor] of [[vessel.from,'top'],[vessel.to,'bottom']]) {
+        const name=Object.assign(document.createElement('span'),{textContent:portLabel(code).split(',')[0]});
         L.circleMarker(mapPoint(portPosition(code)),{radius:4,color:'#a0fff0',fillOpacity:.9})
-          .addTo(layers).bindTooltip(Object.assign(document.createElement("span"),{textContent:label}));
+          .addTo(layers).bindTooltip(name,{permanent:true,direction:anchor,className:'explorer-port-label'});
       }
     }
     const marker=L.marker(mapPoint(position(vessel).point),{
@@ -191,22 +213,28 @@ function redraw() {
     }).addTo(layers);
     marker.bindTooltip(()=>vesselPreview(vessel),{className:'vessel-hover',direction:'auto',offset:[10,-4]})
       .on('click',()=>revealVessel(index));
-    markers.push(marker);
-  });
+    markers[index]=marker;
+  }
 }
 map.on('moveend',redraw);
 
 function selectVessel(index,focus=true) {
   selected=index;
   const vessel=routes[index];
-  byId('vesselPanel').classList.remove('hidden');
-  document.querySelector('.main-grid').classList.add('has-vessel');
+  explorer.group=groupKey(vessel);
+  if(explorer.state!=='all' && explorer.state!==severityOf(vessel)) explorer.state='all';
   map.invalidateSize({pan:false});
   if(focus) {
     mapMode='route';
     updateMapControls();
-    const bounds=L.latLngBounds(unwrap(vessel.active.path));
-    map.fitBounds(bounds,{padding:[24,24],maxZoom:4,animate:false});
+    const original=unwrap(vessel.normal.path);
+    const bounds=L.latLngBounds(original);
+    if(vessel.alert?.alternative) {
+      const alternative=unwrap(vessel.alert.alternative.path);
+      const shift=original.at(-1)[1]-alternative.at(-1)[1];
+      bounds.extend(L.latLngBounds(alternative.map(([lat,lon])=>[lat,lon+shift])));
+    }
+    map.fitBounds(bounds,{padding:[26,26],maxZoom:4,animate:false});
   }
   redraw();
   updateUI();
@@ -214,8 +242,9 @@ function selectVessel(index,focus=true) {
 
 function revealVessel(index) {
   selectVessel(index);
-  const behavior=window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
-  byId('vesselPanel').querySelector('.card-heading').scrollIntoView({block:'nearest',behavior});
+  if(matchMedia('(max-width: 760px)').matches) {
+    byId('map').scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+  }
 }
 
 const msPerDay=86400000;
@@ -489,12 +518,10 @@ function describeAlternative(plan,destination) {
 function updateUI() {
   byId('statAlerts').textContent=routes.filter(s=>s.alert && s.status!=='Arribado').length;
   byId('statCargo').textContent=fmt(routes.filter(v=>v.status!=='Arribado').reduce((sum,s)=>sum+Number(s.tonnes),0))+' t';
-  [...byId('routeList').children].forEach((button,index)=>{
-    button.classList.toggle('active',index===selected);
-    button.setAttribute('aria-pressed',index===selected);
-  });
+  if(view==='mando') buildRouteList();
   if(view==='reportes') renderReports();
   const vessel=routes[selected];
+  updateExplorerSummary(vessel);
   if(!vessel) {
     byId('mapTag').textContent='/ Oceanía y Pacífico Sur';
     byId('mapMessage').textContent='Selecciona un buque o una ruta para ver su detalle.';
@@ -515,19 +542,117 @@ function updateUI() {
   updateEta(vessel);
 }
 function buildRouteList() {
-  byId('routeList').replaceChildren(...routes.map((vessel,index)=>{
+  const groups=new Map();
+  for(const vessel of routes) {
+    const key=groupKey(vessel);
+    groups.set(key,(groups.get(key)||0)+1);
+  }
+  const keys=[...groups.keys()];
+  if(explorer.mode==='origin') {
+    const order=[...originRegions.map(([name])=>name),'Otras regiones'];
+    keys.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+  } else keys.sort((a,b)=>groupName(a).localeCompare(groupName(b),'es'));
+  const focused=document.activeElement;
+  const focusedRoute=focused?.dataset.routeIndex;
+  const focusedGroup=focused?.dataset.group;
+  byId('routeGroupLabel').textContent=explorer.mode==='origin'?'Región de origen':'Puerto de llegada';
+  byId('routeGroups').replaceChildren(...keys.map(key=>{
     const button=document.createElement('button');
-    button.className='route-item';
-    const name=document.createElement('strong'), journey=document.createElement('span');
+    button.type='button';
+    button.dataset.group=key;
+    button.textContent=groupName(key)+' ';
+    const count=document.createElement('span');
+    count.textContent=fmt(groups.get(key));
+    button.append(count);
+    button.setAttribute('aria-pressed',key===explorer.group);
+    button.onclick=()=>changeExplorer({group:key});
+    return button;
+  }));
+  byId('routeGroupTitle').textContent=groupName(explorer.group);
+  byId('routeState').value=explorer.state;
+  const visible=visibleRoutes().sort((a,b)=>stateRank[severityOf(a)]-stateRank[severityOf(b)]);
+  byId('routeList').replaceChildren(...visible.map(vessel=>{
+    const index=routes.indexOf(vessel);
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='route-item'+(selected===index?' active':'');
+    button.dataset.routeIndex=String(index);
+    button.setAttribute('aria-pressed',selected===index);
+    const journey=document.createElement('strong'), name=document.createElement('span');
+    journey.textContent=portLabel(vessel.from).split(',')[0]+' → '+portLabel(vessel.to).split(',')[0];
     name.textContent=vessel.ship;
-    journey.textContent=vessel.origin+' → '+vessel.destination;
-    button.append(name,journey);
+    button.append(journey,name,explorerBadge(vessel));
     button.onclick=()=>revealVessel(index);
     return button;
   }));
   byId('statRoutes').textContent=String(routes.length).padStart(2,'0');
-  byId('routeCount').textContent=routes.length+' BUQUES';
+  byId('routeCount').textContent=fmt(visible.length)+(visible.length===1?' ruta visible':' rutas visibles');
+  byId('routeEmpty').classList.toggle('hidden',visible.length!==0);
+  const match=focusedRoute!==undefined ? [...byId('routeList').children].find(button=>button.dataset.routeIndex===focusedRoute) :
+    [...byId('routeGroups').children].find(button=>button.dataset.group===focusedGroup);
+  match?.focus({preventScroll:true});
 }
+
+function explorerBadge(vessel) {
+  const severity=severityOf(vessel);
+  const badge=document.createElement('span');
+  badge.className='explorer-status '+severity;
+  const icon=document.createElement('i');
+  icon.setAttribute('aria-hidden','true');
+  icon.textContent={normal:'●',ordinary:'▲',critical:'!'}[severity];
+  const label={normal:vessel.status==='Arribado'?'Arribado':'Ruta normal',ordinary:vessel.status+' · No crítica',critical:vessel.status+' · Crítica'};
+  badge.append(icon,label[severity]);
+  return badge;
+}
+
+function updateExplorerSummary(vessel) {
+  byId('explorerSummary').classList.toggle('hidden',!vessel);
+  if(!vessel) return;
+  byId('explorerShip').textContent=vessel.ship;
+  byId('explorerStatus').replaceChildren(explorerBadge(vessel));
+  byId('explorerCargo').textContent=vessel.cargo+' · '+fmt(vessel.tonnes)+' t';
+  const initial=dateTime.format(simulatedDate(vessel,Number(vessel.days)))+' UTC';
+  const revised=arrival(vessel);
+  const change=vessel.alert && revised!==initial;
+  byId('explorerArrival').textContent='Llegada simulada · '+(change?initial+' → '+revised:revised);
+  const minutes=vessel.alert?.alternative ? Math.round((vessel.alert.days-Number(vessel.days))*1440):0;
+  const absMinutes=Math.abs(minutes);
+  const duration=[Math.floor(absMinutes/60)?fmt(Math.floor(absMinutes/60))+' h':'',absMinutes%60?fmt(absMinutes%60)+' min':''].filter(Boolean).join(' ');
+  byId('explorerDelay').textContent=minutes>0?'+'+duration+' de retraso':minutes<0?duration+' antes':'';
+  byId('explorerSimulate').disabled=Boolean(vessel.alert) || vessel.status==='Arribado';
+}
+
+function toggleVesselPanel(show) {
+  byId('vesselPanel').classList.toggle('hidden',!show);
+  byId('toggleVesselDetail').setAttribute('aria-expanded',show);
+  byId('toggleVesselDetail').textContent=show?'Ocultar detalle del buque':'Ver detalle del buque';
+}
+
+function changeExplorer(changes) {
+  Object.assign(explorer,changes);
+  if(selected!==null && !visibleRoutes().includes(routes[selected])) {
+    selected=null;
+    toggleVesselPanel(false);
+  }
+  if(selected===null) {
+    const hasLongRoute=visibleRoutes().some(vessel=>vessel.normal.length>6000);
+    fitOverview(hasLongRoute?'global':'regional');
+  }
+  updateUI();
+  redraw();
+}
+for(const button of document.querySelectorAll('[data-explorer-mode]')) {
+  button.onclick=()=>{
+    if(button.dataset.explorerMode===explorer.mode) return;
+    explorer.mode=button.dataset.explorerMode;
+    const group=selected===null?(explorer.mode==='origin'?'Oceanía':'FJSUV'):groupKey(routes[selected]);
+    for(const toggle of document.querySelectorAll('[data-explorer-mode]')){
+      toggle.setAttribute('aria-pressed',toggle===button);
+    }
+    changeExplorer({group});
+  };
+}
+byId('routeState').onchange=event=>changeExplorer({state:event.target.value});
 
 function findDetour(vessel,severity,targetPassage) {
   const plan=vessel.normal;
@@ -603,8 +728,7 @@ byId('reset').onclick=()=>{
   for(const vessel of routes) Object.assign(vessel,{
     alert:null,status:'En tránsito',active:vessel.normal,travelled:0,elapsed:0
   });
-  redraw();
-  updateUI();
+  changeExplorer({});
 };
 
 function updateEta(vessel) {
@@ -697,16 +821,11 @@ byId('viewFleetRoute').onclick=()=>{
 
 byId('startGuide').onclick=()=>showView('mando');
 byId('closeVessel').onclick=()=>{
-  const previous=selected;
-  selected=null;
-  byId('vesselPanel').classList.add('hidden');
-  document.querySelector('.main-grid').classList.remove('has-vessel');
-  map.invalidateSize({pan:false});
-  if(mapMode==='route') fitOverview('regional');
-  redraw();
-  updateUI();
-  byId('routeList').children[previous]?.focus({preventScroll:true});
+  toggleVesselPanel(false);
+  byId('toggleVesselDetail').focus({preventScroll:true});
 };
+byId('toggleVesselDetail').onclick=()=>toggleVesselPanel(byId('vesselPanel').classList.contains('hidden'));
+byId('explorerSimulate').onclick=()=>byId('simulate').click();
 byId('speed').onchange=event=>{clockSpeed=Number(event.target.value)};
 
 function initRegistration() {
@@ -793,7 +912,6 @@ function initRegistration() {
     routes.push(pending.vessel);
     pending=null;
     registration.close();
-    buildRouteList();
     resetFields();
     setStep(1);
     showView('mando');
@@ -803,7 +921,6 @@ function initRegistration() {
 }
 
 initRegistration();
-buildRouteList();
 updateUI();
 redraw();
 fitOverview('regional');
@@ -815,7 +932,7 @@ new ResizeObserver(()=>{
   const size=map.getSize();
   if (size.equals(previousMapSize)) return;
   previousMapSize=size;
-  if (mapMode==='route') selectVessel(selected);
+  if (mapMode==='route' && selected!==null) selectVessel(selected);
   else fitOverview(mapMode);
 }).observe(map.getContainer());
 requestAnimationFrame(tick);
