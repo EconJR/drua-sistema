@@ -293,8 +293,8 @@ function buildFleetCard(vessel) {
   }
   const button=card.querySelector('.fleet-open');
   button.setAttribute('aria-label','Ver detalle de '+vessel.ship);
-  button.setAttribute('aria-controls','vesselReport');
-  button.setAttribute('aria-expanded',previewVessel===vessel);
+  button.setAttribute('aria-controls','fleetReportDialog');
+  button.setAttribute('aria-haspopup','dialog');
   card.classList.toggle('is-previewed',previewVessel===vessel);
   card.addEventListener('pointerenter',event=>{
     if(event.pointerType==='mouse' && matchMedia('(min-width: 1000px)').matches) openVesselReport(vessel);
@@ -303,11 +303,7 @@ function buildFleetCard(vessel) {
     if(matchMedia('(min-width: 1000px)').matches) openVesselReport(vessel);
   });
   card.onclick=event=>{ if(!event.target.closest('button')) button.click(); };
-  button.onclick=()=>{
-    openVesselReport(vessel);
-    byId('vesselReport').scrollIntoView({block:'nearest'});
-    byId('closeFleetDetail').focus({preventScroll:true});
-  };
+  button.onclick=()=>openReportDialog(vessel,button);
   return card;
 }
 function closeFleetDetail() {
@@ -320,7 +316,6 @@ function highlightFleetCard() {
   for(const card of byId('fleetCards').querySelectorAll('.fleet-card')) {
     const active=routes[Number(card.dataset.vessel)]===previewVessel;
     card.classList.toggle('is-previewed',active);
-    card.querySelector('button').setAttribute('aria-expanded',active);
   }
 }
 function vesselPreview(vessel) {
@@ -375,7 +370,7 @@ function renderReports() {
     button.type='button';
     button.className='report-link';
     button.textContent=vessel.ship;
-    button.onclick=()=>openVesselReport(vessel);
+    button.onclick=()=>openReportDialog(vessel,button);
     name.append(button);
     const cells=[vessel.flag,vessel.origin,vessel.destination,vessel.cargo,
       fmt(vessel.tonnes)+' t',vessel.departure,arrival(vessel),
@@ -462,6 +457,30 @@ function openVesselReport(vessel,{refresh=false}={}) {
   if(!refresh) byId('vesselReport').scrollTop=0;
   showReportMap(vessel);
 }
+const fleetReportDialog=byId('fleetReportDialog');
+const sharedReportBody=byId('fleetDetailContent').querySelector('.report-dialog-body');
+let reportDialogTrigger=null;
+
+function openReportDialog(vessel,trigger) {
+  if(fleetReportDialog.open) return;
+  openVesselReport(vessel);
+  reportDialogTrigger=trigger;
+  byId('fleetReportDialogTitle').textContent=vessel.ship;
+  fleetReportDialog.classList.toggle('has-alert',Boolean(vessel.alert));
+  fleetReportDialog.classList.toggle('has-detour',Boolean(vessel.alert?.alternative));
+  byId('fleetReportDialogSlot').append(sharedReportBody);
+  fleetReportDialog.showModal();
+  sharedReportBody.scrollTop=0;
+  showReportMap(vessel);
+}
+
+fleetReportDialog.addEventListener('close',()=>{
+  byId('viewFleetRoute').before(sharedReportBody);
+  if(previewVessel) showReportMap(previewVessel);
+  if(reportDialogTrigger?.isConnected) reportDialogTrigger.focus({preventScroll:true});
+  reportDialogTrigger=null;
+});
+
 function describeAlternative(plan,destination) {
   const names=[...new Set(plan.edges.map(id=>strategicPassages[seaEdges[id]?.[3]]).filter(Boolean))];
   return (names.length ? names.join(' → ') : 'Tramos marítimos alternativos')+

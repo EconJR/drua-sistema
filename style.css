@@ -235,3 +235,50 @@ main.non-dashboard .fleet-card-event p { font-size:11px; }
 .fleet-card-photo { background-image:url('assets/fleet-vessels.jpg'); background-size:100% 300%; background-position:0 0; }
 .fleet-card[data-photo="1"] .fleet-card-photo { background-position:0 50%; }
 .fleet-card[data-photo="2"] .fleet-card-photo { background-position:0 100%; }
+
+/* Full navigation detail, sharing the route preview with the fleet sidebar. */
+#fleetReportDialog {
+  box-sizing:border-box;
+  width:min(925px,calc(100% - 28px));
+  max-height:min(880px,calc(100dvh - 30px));
+  padding:0;
+  overflow:hidden;
+  border:1px solid #205060;
+  border-radius:8px;
+  color:var(--text);
+  background:#092732;
+  box-shadow:0 18px 70px #00101790;
+}
+#fleetReportDialog[open] { display:flex; flex-direction:column; animation:drua-enter .22s ease-out; }
+#fleetReportDialog::backdrop { background:#00121bdc; }
+#fleetReportDialog .report-dialog-head { flex:none; height:auto; padding:24px 27px 22px; background:#092732; border-color:#205060; }
+#fleetReportDialogTitle { font-size:clamp(21px,3vw,29px); }
+#fleetReportDialog .icon-button { width:32px; height:32px; }
+#fleetReportDialogSlot { min-height:0; display:flex; flex-direction:column; }
+#fleetReportDialog .report-dialog-body {
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  padding:16px 27px 24px;
+  overflow:auto;
+  scrollbar-gutter:stable;
+  scrollbar-color:#71888e #102f38;
+}
+#fleetReportDialog .report-dialog-body section { margin:0 0 18px; }
+#fleetReportDialog .report-dialog-body h3 { font-size:23px; }
+#fleetReportDialog .report-facts { gap:9px; margin:0 0 10px; }
+#fleetReportDialog .report-facts div { padding:11px 12px; border-color:#235667; }
+#fleetReportDialog .report-facts dt { font-size:12px; }
+#fleetReportDialog .report-facts dd { font-size:14px; }
+#fleetReportDialog.has-alert .report-vessel-summary { order:1; }
+#fleetReportDialog.has-alert #reportEventTitle,
+#fleetReportDialog.has-detour #reportEventNote { display:none; }
+#fleetReportDialog #reportMap { height:clamp(220px,34vh,320px); }
+#fleetReportDialog #reportMapLegend { color:var(--muted); font-size:13px; line-height:1.45; }
+@media(max-width:600px) {
+  #fleetReportDialog .report-dialog-head { padding:15px 13px; }
+  #fleetReportDialog .report-dialog-body { padding:12px 13px 17px; }
+  #fleetReportDialog .report-facts div { padding:8px; }
+  #fleetReportDialog .report-facts dd { font-size:12px; }
+}
+@media print { #fleetReportDialog { display:none !important; } }
